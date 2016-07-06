@@ -1,0 +1,242 @@
+from PySide import QtCore, QtGui, QtOpenGL
+
+import OpenGL
+
+from OpenGL.GL import *
+from OpenGL.GLU import *
+
+from .math import *
+from .tool import *
+
+class Camera(object):
+    
+    def __init__(self, owner):
+
+        self.owner = owner
+        
+        self.frame = Rigid3()
+        self.pivot = vec(0, 0, -2)
+        
+        self.znear = 0.1
+        self.zfar = 20.0
+        self.fov = 60.0;
+
+        # width / height
+        self.ratio = 1.0
+
+        self.rotation_sensitivity = 1
+        self.translation_sensitivity = 1
+        self.zoom_sensitivity = 1
+        
+        self.cb = None
+        
+        
+    @property
+    def projection(self):
+        res = QtGui.QMatrix4x4()
+
+        res.setToIdentity()
+        res.perspective(self.fov, self.ratio, self.znear, self.zfar)
+        
+        return res
+
+    @property
+    def modelview(self):
+        res = QtGui.QMatrix4x4()
+
+        inv = self.frame.inv()
+        
+        res.setToIdentity()
+        res.translate( *inv.center )
+        
+        axis, angle = inv.orient.axis_angle()
+        if angle > 1e-5:
+            res.rotate(angle * deg, *axis)
+            
+        return res
+
+
+    def normalize(self, x, y):
+        '''normalize mouse coodinates'''
+        
+        P = self.projection
+        v = QtGui.QVector4D(1, -1, -self.frame.center[2], 1)
+
+        u = P.map(v)
+
+        rx = float(x) / float(self.owner.width())
+        ry = float(y) / float(self.owner.height())
+
+        ry = 1.0 - ry
+
+        return rx, ry
+
+
+    def unproject(self, Pinv, x, y, z = 0):
+
+        d = 2.0 * QtGui.QVector4D(x, y, z, 1.0) - QtGui.QVector4D(1, 1, 1, 1)
+        res = Pinv.map(d)
+        
+        return vec(res.x(), res.y(), res.z())
+    
+
+    @coroutine
+    def translate(self, start):
+
+        start_pos = start.pos()
+
+        start_frame = Rigid3()
+        start_frame[:] = self.frame
+
+        unprojection, ok = self.projection.inverted()
+        assert ok
+
+        z = self.znear
+        z = (z - self.znear) / (self.zfar - self.znear)
+
+        sx, sy = self.normalize(start_pos.x(), start_pos.y())
+        s = self.unproject(unprojection, sx, sy, z)
+
+        while True:
+            ev = yield
+
+            ex, ey = self.normalize(ev.pos().x(), ev.pos().y())
+            e = self.unproject(unprojection, ex, ey, z)
+
+            d = e - s
+
+            scale = norm(self.frame.center - self.pivot)
+
+            f = Rigid3()
+            f.center = scale * self.translation_sensitivity * d 
+
+            self.frame = start_frame * f.inv()
+
+    @coroutine
+    def zoom(self):
+
+        while True:
+            ev = yield
+            degrees = float(ev.delta()) / 8.0
+
+            u = self.frame.inv()(self.pivot)
+            u /= norm(u)
+            
+            delta = Rigid3()
+            delta.center = -(self.zoom_sensitivity * degrees / 8.0) * u
+            
+            self.frame = self.frame * delta
+
+
+    @coroutine
+    def rotate(self, start):
+
+        start_pos = start.pos()
+
+        start_frame = Rigid3()
+        start_frame[:] = self.frame
+
+        Pinv, ok = self.projection.inverted()
+
+        sx, sy = self.normalize(start_pos.x(), start_pos.y())
+        s = start_frame( self.unproject(Pinv, sx, sy) )
+
+        
+        while True:
+            ev = yield
+
+            ex, ey = self.normalize(ev.pos().x(), ev.pos().y())
+            e = start_frame( self.unproject(Pinv, ex, ey) )
+
+            f = Rigid3()
+            f.orient = Quaternion.from_vectors(e - self.pivot,
+                                               s - self.pivot)
+
+            scale = norm(self.frame.center - self.pivot)
+            
+            f.orient = Quaternion.exp( scale * self.rotation_sensitivity * f.orient.log() )
+            
+            t = Rigid3()
+            t.center = self.pivot
+
+            g = t * f * t.inv()
+            
+            self.frame[:] = g * start_frame
+
+            
+class Viewer(QtOpenGL.QGLWidget):
+    def __init__(self, parent=None):
+        super(Viewer, self).__init__(parent)
+
+        self.trolltechPurple = QtGui.QColor.fromCmykF(0.39, 0.39, 0.0, 0.0)
+        self.camera = Camera(self)
+
+        self.mouse_move_handler = None
+        self.mouse_wheel_handler = self.camera.zoom()
+
+        self.setWindowTitle('Viewer')
+        
+    def minimumSizeHint(self):
+        return QtCore.QSize(100, 300)
+
+    def sizeHint(self):
+        return QtCore.QSize(400, 400)
+
+
+    def resizeGL(self, w, h):
+        self.camera.ratio = float(w) / float( h if h != 0 else 1 )
+
+
+    def init(self): pass
+    
+    def initializeGL(self):
+        self.qglClearColor(self.trolltechPurple.darker())
+        self.init()
+
+    def mouseMoveEvent(self, ev):
+        if self.mouse_move_handler:
+            self.mouse_move_handler.send( ev )
+            self.updateGL()
+
+
+    def mousePressEvent(self, ev):
+        if ev.button() == QtCore.Qt.LeftButton:
+            self.mouse_move_handler = self.camera.rotate(ev)
+        if ev.button() == QtCore.Qt.RightButton:
+            self.mouse_move_handler = self.camera.translate(ev)
+
+            
+    def mouseReleaseEvent(self, ev):
+        self.mouse_move_handler = None
+
+    def wheelEvent(self, ev):
+        self.mouse_wheel_handler.send(ev)
+        self.updateGL()
+
+
+    def draw(self):
+        pass
+        
+    def paintGL(self):
+
+        glMatrixMode(GL_PROJECTION)
+        glLoadMatrixd(self.camera.projection.data())
+        
+        glMatrixMode(GL_MODELVIEW)
+        glLoadMatrixd(self.camera.modelview.data())
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+        glPushMatrix()
+        
+        self.draw()
+
+        # debug
+        if self.camera.cb: self.camera.cb()
+        
+        # or glFlush ?
+        glPopMatrix()
+        glFinish()
+
+
+
+    
