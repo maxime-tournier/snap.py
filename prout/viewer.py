@@ -19,7 +19,7 @@ class Camera(object):
         
         self.znear = 0.1
         self.zfar = 20.0
-        self.fov = 60.0;
+        self.vfov = 60.0;
 
         # width / height
         self.ratio = 1.0
@@ -36,7 +36,7 @@ class Camera(object):
         res = QtGui.QMatrix4x4()
 
         res.setToIdentity()
-        res.perspective(self.fov, self.ratio, self.znear, self.zfar)
+        res.perspective(self.vfov, 1.0 / self.ratio, self.znear, self.zfar)
         
         return res
 
@@ -168,13 +168,13 @@ class Viewer(QtOpenGL.QGLWidget):
     def __init__(self, parent=None):
         super(Viewer, self).__init__(parent)
 
-        self.trolltechPurple = QtGui.QColor.fromCmykF(0.39, 0.39, 0.0, 0.0)
         self.camera = Camera(self)
 
         self.mouse_move_handler = None
         self.mouse_wheel_handler = self.camera.zoom()
 
         self.setWindowTitle('Viewer')
+
         
     def minimumSizeHint(self):
         return QtCore.QSize(100, 300)
@@ -184,14 +184,18 @@ class Viewer(QtOpenGL.QGLWidget):
 
 
     def resizeGL(self, w, h):
-        self.camera.ratio = float(w) / float( h if h != 0 else 1 )
-
-
+        self.camera.ratio = float(w) / float( h if h != 0 else 1.0 )
+        
     def init(self): pass
     
     def initializeGL(self):
-        self.qglClearColor(self.trolltechPurple.darker())
+        bg = QtGui.QColor.fromCmykF(0.39, 0.39, 0.0, 0.0).darker()
+        self.qglClearColor(bg)
+
+        self.resizeGL(self.width(), self.height())
         self.init()
+
+
 
     def mouseMoveEvent(self, ev):
         if self.mouse_move_handler:

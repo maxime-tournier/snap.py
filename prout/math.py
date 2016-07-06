@@ -1,3 +1,8 @@
+# MIT license
+# tournier.maxime@gmail.com
+
+'''rigid-body kinematics'''
+
 import numpy as np
 
 import math
@@ -15,6 +20,7 @@ class Rigid3(np.ndarray):
 
     @property
     def center(self):
+        '''translation'''
         return self[:3]
 
     @center.setter
@@ -23,6 +29,7 @@ class Rigid3(np.ndarray):
 
     @property
     def orient(self):
+        '''rotation quaternion'''
         return self[3:].view(Quaternion)
 
     @orient.setter
@@ -37,12 +44,14 @@ class Rigid3(np.ndarray):
         self[:6] = 0
 
     def inv(self):
+        '''invert rigid transformations'''
         res = Rigid3()
         res.orient = self.orient.inv()
         res.center = -res.orient(self.center)
         return res
 
     def __mul__(self, other):
+        '''compose rigid transformations'''
         res = Rigid3()
 
         res.orient = self.orient * other.orient
@@ -73,7 +82,6 @@ class Rigid3(np.ndarray):
         '''homogeneous matrix for rigid transformation'''
 
         res = np.zeros( (4, 4) )
-
         res[:3, :3] = self.orient.matrix()
         res[:3, 3] = self.center
 
@@ -104,13 +112,18 @@ class Quaternion(np.ndarray):
         return res
 
     @property
-    def real(self): return self[-1]
+    def real(self):
+        '''real part'''
+        return self[-1]
 
     @real.setter
-    def real(self, value): self[-1] = value
+    def real(self, value):
+        self[-1] = value
 
     @property
-    def imag(self): return self[:3]
+    def imag(self):
+        '''imaginary part'''
+        return self[:3]
 
     @imag.setter
     def imag(self, value): self[:3] = value
