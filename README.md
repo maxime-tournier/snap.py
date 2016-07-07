@@ -5,7 +5,7 @@ The goal is to have something easy to hack from for trying stuff out.
 
 ## DONE
 
-- projection matrix
+- viewport/projection matrix
 - rotation trackball
 - translation
 - zoom
