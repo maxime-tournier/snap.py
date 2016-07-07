@@ -8,6 +8,8 @@ from OpenGL.GLU import *
 from .math import *
 from .tool import *
 
+import time
+
 class Camera(object):
     
     def __init__(self, owner):
@@ -27,7 +29,9 @@ class Camera(object):
         self.rotation_sensitivity = 1
         self.translation_sensitivity = 1
         self.zoom_sensitivity = 1
-        
+        self.dframe = Rigid3()
+
+        # hack
         self.cb = None
         
         
@@ -110,6 +114,7 @@ class Camera(object):
             f = Rigid3()
             f.center = scale * self.translation_sensitivity * d 
 
+            # TODO dframe + slide
             self.frame = start_frame * f.inv()
 
 
@@ -248,6 +253,8 @@ class Viewer(QtOpenGL.QGLWidget):
         self.connect(self.animation, QtCore.SIGNAL("timeout()"), on_timeout)
         
         self.fps = 60
+
+        self.mouse_prev = None
         
     @property
     def fps(self):
@@ -271,7 +278,6 @@ class Viewer(QtOpenGL.QGLWidget):
         glViewport(0, 0, w, h)
         self.camera.ratio = float(w) / float( h if h != 0 else 1.0 )
         
-        
     def init(self): pass
     
     def initializeGL(self):
@@ -287,7 +293,7 @@ class Viewer(QtOpenGL.QGLWidget):
             self.mouse_move_handler.send( ev )
             self.updateGL()
 
-
+            
     def mousePressEvent(self, ev):
         self.animate_handler = None
         
@@ -316,15 +322,17 @@ class Viewer(QtOpenGL.QGLWidget):
             else: self.animation.start()
             
         
-    def mouseReleaseEvent(self, ev):
+    def mouseReleaseEvent(self, e):
         self.mouse_move_handler = None
 
-        if ev.button() == QtCore.Qt.LeftButton:
-            self.animate_handler = self.camera.spin(ev)
+        if e.button() == QtCore.Qt.LeftButton:
+            
+            if norm(self.camera.dframe.log()) > 0.25:
+                self.animate_handler = self.camera.spin(e)
             
 
-    def wheelEvent(self, ev):
-        self.mouse_wheel_handler.send(ev)
+    def wheelEvent(self, e):
+        self.mouse_wheel_handler.send(e)
         self.updateGL()
 
 
