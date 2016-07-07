@@ -10,10 +10,13 @@ The goal is to have something easy to hack from for trying stuff out.
 - translation
 - zoom
 - axis clamping
+- animation
 
 ## TODO
 
-- animation
+- lighting
+- text overlay
+- easy/pythonic keybindings
 - inertia when rotating/translating fast
 - axis/grid
 - picking

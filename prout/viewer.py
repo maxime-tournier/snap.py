@@ -203,6 +203,11 @@ class Camera(object):
             
             self.frame[:] = g * start_frame
 
+
+
+
+
+
             
 class Viewer(QtOpenGL.QGLWidget):
     
@@ -216,6 +221,19 @@ class Viewer(QtOpenGL.QGLWidget):
 
         self.setWindowTitle('Viewer')
 
+        self.animation = QtCore.QTimer()
+        self.connect(self.animation, QtCore.SIGNAL("timeout()"), self.animate)
+        self.fps = 60
+        
+    @property
+    def fps(self):
+        return 1.0 / (self.animation.interval() / 1000.0)
+    
+    @fps.setter
+    def fps(self, value):
+        interval = (1.0 / value) * 1000.0
+        self.animation.setInterval( interval )
+
         
     def minimumSizeHint(self):
         return QtCore.QSize(100, 300)
@@ -228,7 +246,6 @@ class Viewer(QtOpenGL.QGLWidget):
 
         glViewport(0, 0, w, h)
         self.camera.ratio = float(w) / float( h if h != 0 else 1.0 )
-        
         
         
     def init(self): pass
@@ -260,6 +277,18 @@ class Viewer(QtOpenGL.QGLWidget):
             self.camera.clamp_to_axis()
 
         self.updateGL()
+
+
+    def animate(self): pass
+
+
+
+    def keyPressEvent(self, e):
+
+        if e.key() == QtCore.Qt.Key_Return:
+            if self.animation.isActive(): self.animation.stop()
+            else: self.animation.start()
+            
         
     def mouseReleaseEvent(self, ev):
         self.mouse_move_handler = None

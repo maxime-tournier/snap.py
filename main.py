@@ -53,6 +53,11 @@ class Viewer(prout.Viewer):
     def init(self):
         glEnable(GL_DEPTH_TEST)
         
+
+
+    def animate(self):
+        import time
+        print('animate', time.time())
         
     def draw(self):
         
