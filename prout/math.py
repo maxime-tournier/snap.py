@@ -8,13 +8,19 @@ import numpy as np
 import math
 import sys
 
-def vec(*coords):
-    return np.array(coords, dtype = float)
 
 from numpy.linalg import norm
 
+def vec(*coords):
+    return np.array(coords, dtype = float)
+
+
 
 deg = 180.0 / math.pi
+
+ex = vec(1, 0, 0)
+ey = vec(0, 1, 0)
+ez = vec(0, 0, 1)
 
 class Rigid3(np.ndarray):
 
@@ -215,8 +221,11 @@ class Quaternion(np.ndarray):
 
     def axis_angle(self):
         '''rotation axis/angle'''
-        half_angle = math.acos(self.real)
-        axis = self.imag / math.sin( half_angle ) if half_angle > sys.float_info.epsilon else None
+
+        q = self if self.real >= 0 else -self
+        
+        half_angle = math.acos( min(q.real, 1.0) )
+        axis = q.imag / math.sin( half_angle ) if half_angle > sys.float_info.epsilon else None
 
         return axis, 2 * half_angle
 

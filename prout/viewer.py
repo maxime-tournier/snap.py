@@ -112,26 +112,55 @@ class Camera(object):
 
             self.frame = start_frame * f.inv()
 
+
+    def clamp_to_axis(self):
+
+        pos = np.abs(self.frame.center - self.pivot).tolist()
+        
+        index = pos.index( max(pos) )
+
+        self.frame.center = [ self.pivot[i] if i != index else self.frame.center[i]
+                              for i in range(3)]
+        
+        local_pivot = self.frame.inv()(self.pivot)
+
+        # look at pivot
+        q = Quaternion.from_vectors(-ez, local_pivot)
+        self.frame.orient = self.frame.orient * q
+
+
+        # pick axis closest to camera up axis
+        cam_up = self.frame.orient(ey)
+        proj = np.abs(cam_up).tolist()
+        index = proj.index( max(proj) )
+        
+        up = vec(0, 0, 0)
+        up[index] = proj[index] / cam_up[index] # to get sign right
+        
+        q = Quaternion.from_vectors(ey, self.frame.orient.inv()(up))
+        self.frame.orient = self.frame.orient * q
+        
+        
+        
+        
+
+            
     @coroutine
     def zoom(self):
 
         while True:
             ev = yield
-            degrees = float(ev.delta()) / 8.0
+            degrees = float(ev.delta()) / 256.0
 
-            print(type(self.pivot) )
             u = self.frame.inv()(self.pivot)
-
-            print(type(u))
             
             dist = norm(u)
             view = u / dist
             
-            delta = - (self.zoom_sensitivity * degrees / 8.0) * dist
+            delta = (self.zoom_sensitivity * degrees) * dist
 
             # make sure we dont zoom closer than znear
             delta = min(delta, dist - self.znear)
-
             
             f = Rigid3()
             f.center[:] = view * delta
@@ -220,7 +249,14 @@ class Viewer(QtOpenGL.QGLWidget):
         if ev.button() == QtCore.Qt.RightButton:
             self.mouse_move_handler = self.camera.translate(ev)
 
-            
+
+    def mouseDoubleClickEvent(self, ev):
+
+        if ev.button() == QtCore.Qt.LeftButton:
+            self.camera.clamp_to_axis()
+
+        self.updateGL()
+        
     def mouseReleaseEvent(self, ev):
         self.mouse_move_handler = None
 
