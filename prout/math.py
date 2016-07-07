@@ -21,7 +21,7 @@ class Rigid3(np.ndarray):
     @property
     def center(self):
         '''translation'''
-        return self[:3]
+        return self[:3].view( np.ndarray )
 
     @center.setter
     def center(self, value):
@@ -123,7 +123,7 @@ class Quaternion(np.ndarray):
     @property
     def imag(self):
         '''imaginary part'''
-        return self[:3]
+        return self[:3].view( np.ndarray )
 
     @imag.setter
     def imag(self, value): self[:3] = value
