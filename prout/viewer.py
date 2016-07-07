@@ -119,13 +119,24 @@ class Camera(object):
             ev = yield
             degrees = float(ev.delta()) / 8.0
 
+            print(type(self.pivot) )
             u = self.frame.inv()(self.pivot)
-            u /= norm(u)
+
+            print(type(u))
             
-            delta = Rigid3()
-            delta.center = -(self.zoom_sensitivity * degrees / 8.0) * u
+            dist = norm(u)
+            view = u / dist
             
-            self.frame = self.frame * delta
+            delta = - (self.zoom_sensitivity * degrees / 8.0) * dist
+
+            # make sure we dont zoom closer than znear
+            delta = min(delta, dist - self.znear)
+
+            
+            f = Rigid3()
+            f.center[:] = view * delta
+            
+            self.frame = self.frame * f
 
 
     @coroutine
@@ -165,6 +176,7 @@ class Camera(object):
 
             
 class Viewer(QtOpenGL.QGLWidget):
+    
     def __init__(self, parent=None):
         super(Viewer, self).__init__(parent)
 
@@ -194,7 +206,6 @@ class Viewer(QtOpenGL.QGLWidget):
 
         self.resizeGL(self.width(), self.height())
         self.init()
-
 
 
     def mouseMoveEvent(self, ev):
