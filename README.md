@@ -9,10 +9,10 @@ The goal is to have something easy to hack from for trying stuff out.
 - rotation trackball
 - translation
 - zoom
+- axis clamping
 
 ## TODO
 
-- fix resizeGL
 - animation
 - inertia when rotating/translating fast
 - axis/grid

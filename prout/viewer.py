@@ -18,7 +18,7 @@ class Camera(object):
         self.pivot = vec(0, 0, -2)
         
         self.znear = 0.1
-        self.zfar = 20.0
+        self.zfar = 100.0
         self.vfov = 60.0;
 
         # width / height
@@ -36,7 +36,7 @@ class Camera(object):
         res = QtGui.QMatrix4x4()
 
         res.setToIdentity()
-        res.perspective(self.vfov, 1.0 / self.ratio, self.znear, self.zfar)
+        res.perspective(self.vfov, self.ratio, self.znear, self.zfar)
         
         return res
 
@@ -225,7 +225,11 @@ class Viewer(QtOpenGL.QGLWidget):
 
 
     def resizeGL(self, w, h):
+
+        glViewport(0, 0, w, h)
         self.camera.ratio = float(w) / float( h if h != 0 else 1.0 )
+        
+        
         
     def init(self): pass
     
@@ -269,7 +273,6 @@ class Viewer(QtOpenGL.QGLWidget):
         pass
         
     def paintGL(self):
-
         glMatrixMode(GL_PROJECTION)
         glLoadMatrixd(self.camera.projection.data())
         
