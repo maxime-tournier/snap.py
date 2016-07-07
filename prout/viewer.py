@@ -200,13 +200,29 @@ class Camera(object):
             t.center = self.pivot
 
             g = t * f * t.inv()
+
+            next_frame = g * start_frame
+
+            self.dframe = next_frame * self.frame.inv()
+            self.frame[:] = next_frame
+
+
+
+
+    @coroutine
+    def spin(self, ev):
+
+        delta = Rigid3()
+        delta[:] = self.dframe 
+
+        while True:
+            yield
+
+            # 1% damping
+            factor = 0.99
+            delta = Rigid3.exp( factor * delta.log() )
             
-            self.frame[:] = g * start_frame
-
-
-
-
-
+            self.frame[:] = delta * self.frame
 
             
 class Viewer(QtOpenGL.QGLWidget):
@@ -218,11 +234,19 @@ class Viewer(QtOpenGL.QGLWidget):
 
         self.mouse_move_handler = None
         self.mouse_wheel_handler = self.camera.zoom()
-
+        self.animate_handler = None
+        
         self.setWindowTitle('Viewer')
 
         self.animation = QtCore.QTimer()
-        self.connect(self.animation, QtCore.SIGNAL("timeout()"), self.animate)
+
+        def on_timeout():
+            if self.animate_handler: next(self.animate_handler)
+            self.animate()
+            self.updateGL()
+            
+        self.connect(self.animation, QtCore.SIGNAL("timeout()"), on_timeout)
+        
         self.fps = 60
         
     @property
@@ -265,6 +289,8 @@ class Viewer(QtOpenGL.QGLWidget):
 
 
     def mousePressEvent(self, ev):
+        self.animate_handler = None
+        
         if ev.button() == QtCore.Qt.LeftButton:
             self.mouse_move_handler = self.camera.rotate(ev)
         if ev.button() == QtCore.Qt.RightButton:
@@ -292,6 +318,10 @@ class Viewer(QtOpenGL.QGLWidget):
         
     def mouseReleaseEvent(self, ev):
         self.mouse_move_handler = None
+
+        if ev.button() == QtCore.Qt.LeftButton:
+            self.animate_handler = self.camera.spin(ev)
+            
 
     def wheelEvent(self, ev):
         self.mouse_wheel_handler.send(ev)

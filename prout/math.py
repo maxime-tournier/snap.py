@@ -24,6 +24,10 @@ ez = vec(0, 0, 1)
 
 class Rigid3(np.ndarray):
 
+    # note: lie algebra coordinates are (rotation, translation)
+
+    # TODO: make a twist class ?
+    
     @property
     def center(self):
         '''translation'''
@@ -46,9 +50,10 @@ class Rigid3(np.ndarray):
         return np.ndarray.__new__(cls, 7)
         
     def __init__(self):
+        # TODO w should go first
         self[-1] = 1
         self[:6] = 0
-
+        
     def inv(self):
         '''invert rigid transformations'''
         res = Rigid3()
@@ -71,12 +76,14 @@ class Rigid3(np.ndarray):
 
 
     def Ad(self):
-        '''SE(3) group adjoint matrix in lie algebra coordinates'''
+        '''SE(3) group adjoint matrix'''
+        
         res = np.zeros((6, 6))
 
         R = self.orient.matrix()
         t = Quaternion.hat(self.center)
 
+        
         res[:3, :3] = R
         res[3:, 3:] = R
 
@@ -94,7 +101,30 @@ class Rigid3(np.ndarray):
         res[3, 3] = 1
 
         return res
+
+
+    @staticmethod
+    def exp(x):
+        '''SE(3) exponential'''
         
+        res = Rigid3()
+
+        res.orient = Quaternion.exp( x[:3] )
+        res.center = res.orient( Quaternion.dexp( x[:3] ).dot( x[3:] ) )
+
+        return res
+
+    
+    def log(self):
+
+        res = np.zeros(6)
+
+        res[:3] = self.orient.log()
+        res[3:] = self.orient.dlog().dot( self.orient.conj()( self.center ) )
+
+        return res
+    
+    
 class Quaternion(np.ndarray):
     
     def __new__(cls, *args):
@@ -198,6 +228,49 @@ class Quaternion(np.ndarray):
 
         return res
 
+    
+    @staticmethod
+    def dexp(x):
+        '''exponential derivative (SO(3)) in body-fixed coordinates'''
+
+        theta = norm(x)
+
+        if theta < sys.float_info.epsilon:
+            return np.identity(3)
+        
+        n = x / theta
+        
+        P = np.outer(n, n)
+        H = Quaternion.hat(n)
+
+        # we want SO(3) exponential
+        theta = theta / 2.0
+        
+        s = math.sin(theta)
+        c = math.cos(theta)
+
+        I = np.identity(3)
+
+        return P + (s / theta) * (c * I - s * H).dot(I - P)
+
+
+    def dlog(self):
+        '''logarithm derivative (SO(3)) in body-fixed coordinates'''
+        
+        n, theta = self.axis_angle()
+        
+        if n is None: return np.identity(3)
+
+        theta /= 2
+        res = np.zeros( (3, 3) )
+
+        P = np.outer(n, n)
+
+        log = n * theta
+        
+        return (P + (theta / math.tan(theta)) * ( np.identity(3) - P ) + Quaternion.hat(log) )
+
+    
     def log(self):
         '''quaternion logarithm (doubled)'''
         

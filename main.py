@@ -54,7 +54,6 @@ class Viewer(prout.Viewer):
         glEnable(GL_DEPTH_TEST)
         
 
-
     def animate(self):
         import time
         print('animate', time.time())
@@ -71,6 +70,7 @@ class Viewer(prout.Viewer):
         self.draw_cross()
         glPopMatrix()
 
+        
 if __name__ == '__main__':
     
     app = QtGui.QApplication(sys.argv)
