@@ -75,11 +75,6 @@ if __name__ == '__main__':
     
     app = QtGui.QApplication(sys.argv)
 
-    w = Viewer()
-    w.show()
-
-    w.camera.frame.center[2] = 5
-    
     def console(local):
         
         import code
@@ -91,6 +86,11 @@ if __name__ == '__main__':
     thread.daemon = True
     thread.start()
 
+    w = Viewer()
+    w.show()
+    w.camera.frame.center[2] = 5
+
+    
     def cleanup():
         import os
         os.system('stty sane')
