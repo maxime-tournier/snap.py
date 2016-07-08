@@ -16,10 +16,13 @@ from youpy.math import *
 
 import time
 
-class RigidBody(object):
 
+class RigidBody(object):
+    '''a rigid body object'''
+    
     def __init__(self):
 
+        # properties
         self.mass = 1.0
         self.inertia = [1, 1, 1]
         self.name = 'unnamed body'
@@ -29,11 +32,15 @@ class RigidBody(object):
         
         # body dofs
         self.frame = Rigid3()
+
+
         
 class Joint(object):
-
+    '''a joint between rigid bodies'''
+    
     def __init__(self):
 
+        # properties
         self.parent_index = 0
         self.parent_frame = Rigid3()
         
@@ -45,11 +52,12 @@ class Joint(object):
         
         self.name = 'unnamed joint'
 
+
+        
 class Robot(object):
 
     def __init__(self):
-
-
+        
         # an array of 3 rigid bodies
         self.body = [ RigidBody() for i in range(3) ]
 
@@ -68,8 +76,7 @@ class Robot(object):
         self.body[1].dim = [0.1, 2, 0.1]
         self.body[2].dim = [0.1, 2, 0.1]        
         
-        
-        
+
         # an array of 2 joints
         self.joint = [ Joint() for i in range(2) ]
 
@@ -102,12 +109,14 @@ class Robot(object):
     def update(self):
         '''update body dofs from joint dofs (forward kinematics)'''
 
+        # traverse joints in forward order
         for i in self.forward:
             j = self.joint[i]
 
             c = self.body[j.child_index]
             p = self.body[j.parent_index]            
-            
+
+            # compute child frame
             c.frame = p.frame * j.parent_frame * j.dofs * j.child_frame.inv()
 
             
@@ -115,11 +124,17 @@ class Robot(object):
         glColor(1, 1, 1)
         
         for b in self.body:
-            # in body frame, aligned with y axis
+
+            # in body frame
             with gl.frame(b.frame):
+
+                # scale by body dimensions
                 glScale(*b.dim)
+
+                # offset drawing on the y axis
                 glTranslate(0, -0.5, 0)
 
+                # draw a cylinder along the y axis
                 with gl.lookat(ey):
                     gl.cylinder()
                 
@@ -127,6 +142,7 @@ class Robot(object):
 class Viewer(youpy.Viewer):
 
     def init(self):
+        
         self.robot = Robot()
         self.animation.start()
         self.start_time = time.time()
@@ -135,11 +151,14 @@ class Viewer(youpy.Viewer):
         t = time.time() - self.start_time
         
         self.robot.joint[0].dofs.orient = Quaternion.exp( math.pi/4 * math.sin(t) * ez )
-        self.robot.joint[1].dofs.orient = Quaternion.exp( math.pi/4 * math.sin(2 * t) * ez )               
+        self.robot.joint[1].dofs.orient = Quaternion.exp( math.pi/4 * math.sin(2 * t) * ez )
+        
         self.robot.update()
-    
+
+        
     def draw(self):
         self.robot.draw()
+
         
 if __name__ == '__main__':
     
