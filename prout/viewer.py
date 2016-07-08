@@ -8,6 +8,8 @@ from OpenGL.GLU import *
 from .math import *
 from .tool import *
 
+from . import gl
+
 import time
 
 class Camera(object):
@@ -15,10 +17,12 @@ class Camera(object):
     def __init__(self, owner):
 
         self.owner = owner
-        
+
+        # frame/pivot
         self.frame = Rigid3()
-        self.pivot = vec(0, 0, -2)
-        
+        self.pivot = vec(0, 0, 0)
+
+        # frustum
         self.znear = 0.1
         self.zfar = 100.0
         self.vfov = 60.0;
@@ -30,9 +34,8 @@ class Camera(object):
         self.translation_sensitivity = 1
         self.zoom_sensitivity = 1
 
-
+        # spin/slide
         self.dframe = Rigid3()
-
         self.damping = 1e-2
         self.stop_velocity = 1e-3
         
@@ -56,7 +59,7 @@ class Camera(object):
         res.translate( *inv.center )
         
         axis, angle = inv.orient.axis_angle()
-        if angle > 1e-5:
+        if axis is not None:
             res.rotate(angle * deg, *axis)
             
         return res
@@ -122,7 +125,7 @@ class Camera(object):
             self.frame = next_frame
 
 
-    def clamp_to_axis(self):
+    def axis_align(self):
 
         pos = np.abs(self.frame.center - self.pivot).tolist()
         
@@ -148,8 +151,6 @@ class Camera(object):
         
         q = Quaternion.from_vectors(ey, self.frame.orient.inv()(up))
         self.frame.orient = self.frame.orient * q
-        
-        
         
         
 
@@ -235,6 +236,8 @@ class Camera(object):
             delta = Rigid3.exp( vel )
             self.frame[:] = delta * self.frame
 
+
+
     @coroutine            
     def slide(self):
         delta = Rigid3()
@@ -250,6 +253,7 @@ class Camera(object):
             delta = Rigid3.exp( vel )
             self.frame[:] = self.frame * delta
 
+
             
 class Viewer(QtOpenGL.QGLWidget):
     
@@ -258,12 +262,20 @@ class Viewer(QtOpenGL.QGLWidget):
 
         self.camera = Camera(self)
 
+        # 
         self.mouse_move_handler = None
         self.mouse_wheel_handler = self.camera.zoom()
         self.draw_handler = None
         
         self.setWindowTitle('Viewer')
 
+        # display flags
+        # TODO make these properties and emit update_needed
+        self.show_axis = True
+        self.show_grid = False
+        
+
+        # animation
         self.animation = QtCore.QTimer()
 
         def on_timeout():
@@ -272,10 +284,7 @@ class Viewer(QtOpenGL.QGLWidget):
             self.updateGL()
             
         self.connect(self.animation, QtCore.SIGNAL("timeout()"), on_timeout)
-        
         self.fps = 60
-
-        self.mouse_prev = None
 
         # a timer to post updateGL events
         self.update_timer = QtCore.QTimer()
@@ -297,7 +306,6 @@ class Viewer(QtOpenGL.QGLWidget):
         interval = (1.0 / value) * 1000.0
         self.animation.setInterval( interval )
 
-        
     def minimumSizeHint(self):
         return QtCore.QSize(100, 300)
 
@@ -314,9 +322,21 @@ class Viewer(QtOpenGL.QGLWidget):
     
     def initializeGL(self):
         bg = QtGui.QColor.fromCmykF(0.39, 0.39, 0.0, 0.0).darker()
+        
         self.qglClearColor(bg)
 
         self.resizeGL(self.width(), self.height())
+
+        # some reasonable defaults
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+        glEnable(GL_LIGHT0)
+
+        glEnable(GL_COLOR_MATERIAL)
+        glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
+
+        glEnable(GL_NORMALIZE)
+
         self.init()
 
 
@@ -342,7 +362,7 @@ class Viewer(QtOpenGL.QGLWidget):
     def mouseDoubleClickEvent(self, e):
 
         if e.button() == QtCore.Qt.LeftButton:
-            self.camera.clamp_to_axis()
+            self.camera.axis_align()
             self.update_needed.emit()
 
 
@@ -380,7 +400,26 @@ class Viewer(QtOpenGL.QGLWidget):
 
     def draw(self):
         pass
+
+
+    def draw_axis(self):
+
+        glColor(1, 1, 1)
+        gl.sphere(radius = 0.025)
         
+        glColor(1, 0.2, 0.2)
+        with gl.lookat(ex):
+            gl.arrow()            
+        
+        glColor(0.2, 1, 0.2)
+        with gl.lookat(ey):
+            gl.arrow()            
+        
+        glColor(0.2, 0.2, 1)
+        with gl.lookat(ez):
+            gl.arrow()            
+
+    
     def paintGL(self):
         glMatrixMode(GL_PROJECTION)
         glLoadMatrixd(self.camera.projection.data())
@@ -391,6 +430,9 @@ class Viewer(QtOpenGL.QGLWidget):
 
         glPushMatrix()
 
+        # axis/grid
+        if self.show_axis: self.draw_axis()
+        
         if self.draw_handler:
             try:
                 next(self.draw_handler)

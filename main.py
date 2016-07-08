@@ -11,48 +11,33 @@ import OpenGL
 from OpenGL.GL import *
 from OpenGL.GLU import *
 
+from prout import gl
 
 class Viewer(prout.Viewer):
 
-    def draw_frame(self):
-        glDisable(GL_LIGHTING)
-        glBegin(GL_LINES)
+    
 
-        glColor(1, 0, 0)
-        glVertex(0, 0, 0)
-        glVertex(1, 0, 0)
-
-        glColor(0, 1, 0)
-        glVertex(0, 0, 0)
-        glVertex(0, 1, 0)
-
-        glColor(0, 0, 1)        
-        glVertex(0, 0, 0)
-        glVertex(0, 0, 1)
-        glEnd()
-        glEnable(GL_LIGHTING)
-
+        
 
     def draw_cross(self):
-        glDisable(GL_LIGHTING)
-        glBegin(GL_LINES)
 
-        glVertex(-1, 0, 0)
-        glVertex(1, 0, 0)
-
-        glVertex(0, -1, 0)
-        glVertex(0, 1, 0)
-
-        glVertex(0, 0, -1)
-        glVertex(0, 0, 1)
-        glEnd()
-        glEnable(GL_LIGHTING)
+        glColor(0.7, 0.7, 0.7)
         
+        with gl.push_matrix():
+            glScale(0.2, 0.2, 0.2)
+            with gl.disable(GL_LIGHTING), gl.begin(GL_LINES):
+                glVertex(-1, 0, 0)
+                glVertex(1, 0, 0)
+
+                glVertex(0, -1, 0)
+                glVertex(0, 1, 0)
+
+                glVertex(0, 0, -1)
+                glVertex(0, 0, 1)
 
 
     def init(self):
-        glEnable(GL_DEPTH_TEST)
-        
+        pass
 
     def animate(self):
         import time
@@ -61,14 +46,14 @@ class Viewer(prout.Viewer):
     def draw(self):
         print('draw')
         glLineWidth(3.0)
-        self.draw_frame()
 
-        
-        glPushMatrix()
-        glTranslate(*self.camera.pivot)
-        glColor(0, 0, 0)
-        self.draw_cross()
-        glPopMatrix()
+        # glColor(0.4, 0.4, 1.0)
+        # gl.sphere()
+
+        # with gl.push_matrix():
+        #     glTranslate(*self.camera.pivot)
+        #     glColor(0, 0, 0)
+        #     self.draw_cross()
 
         
 if __name__ == '__main__':
