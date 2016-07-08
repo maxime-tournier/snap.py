@@ -1,4 +1,4 @@
-import prout
+import youpy
 
 from PySide import QtGui
 
@@ -11,9 +11,9 @@ import OpenGL
 from OpenGL.GL import *
 from OpenGL.GLU import *
 
-from prout import gl
+from youpy import gl
 
-class Viewer(prout.Viewer):
+class Viewer(youpy.Viewer):
     
 
     def draw_cross(self):

@@ -1,4 +1,4 @@
-import prout
+import youpy
 
 from PySide import QtGui
 
@@ -11,8 +11,8 @@ import OpenGL
 from OpenGL.GL import *
 from OpenGL.GLU import *
 
-from prout import gl
-from prout.math import *
+from youpy import gl
+from youpy.math import *
 
 import time
 
@@ -124,7 +124,7 @@ class Robot(object):
                     gl.cylinder()
                 
 
-class Viewer(prout.Viewer):
+class Viewer(youpy.Viewer):
 
     def init(self):
         self.robot = Robot()
