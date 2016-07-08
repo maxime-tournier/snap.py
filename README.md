@@ -1,5 +1,6 @@
 `prout.py` is a simple python package that does some of what
-[QGLViewer](http://libqglviewer.com/) does, but in pure python.
+[QGLViewer](http://libqglviewer.com/) does, but in pure python. It
+provides a QGLWidget with basic viewing features.
 
 The goal is to have something easy to hack from for trying stuff out.
 
