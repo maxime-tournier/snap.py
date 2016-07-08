@@ -6,18 +6,18 @@ The goal is to have something easy to hack from for trying stuff out.
 ## DONE
 
 - viewport/projection matrix
-- rotation trackball
-- translation
-- zoom
-- axis clamping
-- animation
+- rotation trackball (left click)
+- translation (right click)
+- zoom (mouse wheel)
+- axis clamping (double click)
+- animation control (on/off/fps)
+- spin/slide when rotating/translating fast
 
 ## TODO
 
 - lighting
 - text overlay
 - easy/pythonic keybindings
-- inertia when rotating/translating fast
 - axis/grid
 - picking
 - set pivot point
