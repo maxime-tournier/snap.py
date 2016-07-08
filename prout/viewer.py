@@ -32,11 +32,9 @@ class Camera(object):
 
 
         self.dframe = Rigid3()
-        self.damping = 2e-2
 
-        
-        # hack
-        self.cb = None
+        self.damping = 1e-2
+        self.stop_velocity = 1e-3
         
         
     @property
@@ -231,8 +229,10 @@ class Camera(object):
 
             # 1% damping
             factor = 1.0 - self.damping
-            delta = Rigid3.exp( factor * delta.log() )
+            vel = factor * delta.log()
+            if norm(vel) < self.stop_velocity: break
             
+            delta = Rigid3.exp( vel )
             self.frame[:] = delta * self.frame
 
     @coroutine            
@@ -244,8 +244,10 @@ class Camera(object):
             yield
 
             factor = 1.0 - self.damping
-            delta = Rigid3.exp( factor * delta.log() )
-
+            vel = factor * delta.log()
+            if norm(vel) < self.stop_velocity: break
+            
+            delta = Rigid3.exp( vel )
             self.frame[:] = self.frame * delta
 
             
@@ -258,14 +260,14 @@ class Viewer(QtOpenGL.QGLWidget):
 
         self.mouse_move_handler = None
         self.mouse_wheel_handler = self.camera.zoom()
-        self.animate_handler = None
+        self.draw_handler = None
         
         self.setWindowTitle('Viewer')
 
         self.animation = QtCore.QTimer()
 
         def on_timeout():
-            if self.animate_handler: next(self.animate_handler)
+
             self.animate()
             self.updateGL()
             
@@ -274,7 +276,18 @@ class Viewer(QtOpenGL.QGLWidget):
         self.fps = 60
 
         self.mouse_prev = None
+
+        # a timer to post updateGL events
+        self.update_timer = QtCore.QTimer()
+        self.update_timer.setSingleShot( True )
+        self.update_timer.setInterval(0)
+        self.connect(self.update_timer, QtCore.SIGNAL("timeout()"), self.updateGL)
+
+        # a nice signal to control it
+        self.update_needed.connect(self.update_timer.start)
         
+    update_needed = QtCore.Signal()
+    
     @property
     def fps(self):
         return 1.0 / (self.animation.interval() / 1000.0)
@@ -307,28 +320,30 @@ class Viewer(QtOpenGL.QGLWidget):
         self.init()
 
 
-    def mouseMoveEvent(self, ev):
+    def mouseMoveEvent(self, e):
         
         if self.mouse_move_handler:
-            self.mouse_move_handler.send( ev )
-            self.updateGL()
+            self.mouse_move_handler.send( e )
+            self.update_needed.emit()            
             
-    def mousePressEvent(self, ev):
-        self.animate_handler = None
+    def mousePressEvent(self, e):
+        self.draw_handler = None
         self.camera.dframe = Rigid3()
         
-        if ev.button() == QtCore.Qt.LeftButton:
-            self.mouse_move_handler = self.camera.rotate(ev)
-        if ev.button() == QtCore.Qt.RightButton:
-            self.mouse_move_handler = self.camera.translate(ev)
+        if e.button() == QtCore.Qt.LeftButton:
+            self.mouse_move_handler = self.camera.rotate(e)
+            self.update_needed.emit()
+            
+        if e.button() == QtCore.Qt.RightButton:
+            self.mouse_move_handler = self.camera.translate(e)
+            self.update_needed.emit()
 
 
-    def mouseDoubleClickEvent(self, ev):
+    def mouseDoubleClickEvent(self, e):
 
-        if ev.button() == QtCore.Qt.LeftButton:
+        if e.button() == QtCore.Qt.LeftButton:
             self.camera.clamp_to_axis()
-
-        self.updateGL()
+            self.update_needed.emit()
 
 
     def animate(self): pass
@@ -348,18 +363,19 @@ class Viewer(QtOpenGL.QGLWidget):
         if e.button() == QtCore.Qt.LeftButton:
             
             if norm(self.camera.dframe.log()) > 0.1:
-                self.animate_handler = self.camera.spin()
-
-
+                self.draw_handler = self.camera.spin()
+                self.update_needed.emit()                
+                
         if e.button() == QtCore.Qt.RightButton:
             
             if norm(self.camera.dframe.log()) > 0.1:
-                self.animate_handler = self.camera.slide()
+                self.draw_handler = self.camera.slide()
+                self.update_needed.emit()
                 
 
     def wheelEvent(self, e):
         self.mouse_wheel_handler.send(e)
-        self.updateGL()
+        self.update_needed.emit()                        
 
 
     def draw(self):
@@ -374,16 +390,23 @@ class Viewer(QtOpenGL.QGLWidget):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         glPushMatrix()
+
+        if self.draw_handler:
+            try:
+                next(self.draw_handler)
+                self.update_needed.emit()
+            except StopIteration:
+                self.draw_handler = None
         
         self.draw()
 
-        # debug
-        if self.camera.cb: self.camera.cb()
-        
         # or glFlush ?
         glPopMatrix()
         glFinish()
 
+        
+
+        
 
 
     

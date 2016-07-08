@@ -59,7 +59,7 @@ class Viewer(prout.Viewer):
         print('animate', time.time())
         
     def draw(self):
-        
+        print('draw')
         glLineWidth(3.0)
         self.draw_frame()
 
