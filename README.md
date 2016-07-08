@@ -28,7 +28,7 @@ The goal is to have something easy to hack from for trying stuff out.
 
 ## Usage
 
-Install dependencies:
+Install dependencies, *e.g.* on Debian/Ubuntu:
 
 `sudo apt-get install python3-numpy python3-pyside python3-opengl`
 
