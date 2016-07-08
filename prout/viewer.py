@@ -29,8 +29,12 @@ class Camera(object):
         self.rotation_sensitivity = 1
         self.translation_sensitivity = 1
         self.zoom_sensitivity = 1
-        self.dframe = Rigid3()
 
+
+        self.dframe = Rigid3()
+        self.damping = 2e-2
+
+        
         # hack
         self.cb = None
         
@@ -114,8 +118,10 @@ class Camera(object):
             f = Rigid3()
             f.center = scale * self.translation_sensitivity * d 
 
-            # TODO dframe + slide
-            self.frame = start_frame * f.inv()
+            next_frame = start_frame * f.inv()
+
+            self.dframe = self.frame.inv() * next_frame
+            self.frame = next_frame
 
 
     def clamp_to_axis(self):
@@ -215,7 +221,7 @@ class Camera(object):
 
 
     @coroutine
-    def spin(self, ev):
+    def spin(self):
 
         delta = Rigid3()
         delta[:] = self.dframe 
@@ -224,10 +230,23 @@ class Camera(object):
             yield
 
             # 1% damping
-            factor = 0.99
+            factor = 1.0 - self.damping
             delta = Rigid3.exp( factor * delta.log() )
             
             self.frame[:] = delta * self.frame
+
+    @coroutine            
+    def slide(self):
+        delta = Rigid3()
+        delta[:] = self.dframe 
+
+        while True:
+            yield
+
+            factor = 1.0 - self.damping
+            delta = Rigid3.exp( factor * delta.log() )
+
+            self.frame[:] = self.frame * delta
 
             
 class Viewer(QtOpenGL.QGLWidget):
@@ -289,13 +308,14 @@ class Viewer(QtOpenGL.QGLWidget):
 
 
     def mouseMoveEvent(self, ev):
+        
         if self.mouse_move_handler:
             self.mouse_move_handler.send( ev )
             self.updateGL()
-
             
     def mousePressEvent(self, ev):
         self.animate_handler = None
+        self.camera.dframe = Rigid3()
         
         if ev.button() == QtCore.Qt.LeftButton:
             self.mouse_move_handler = self.camera.rotate(ev)
@@ -327,9 +347,15 @@ class Viewer(QtOpenGL.QGLWidget):
 
         if e.button() == QtCore.Qt.LeftButton:
             
-            if norm(self.camera.dframe.log()) > 0.25:
-                self.animate_handler = self.camera.spin(e)
+            if norm(self.camera.dframe.log()) > 0.1:
+                self.animate_handler = self.camera.spin()
+
+
+        if e.button() == QtCore.Qt.RightButton:
             
+            if norm(self.camera.dframe.log()) > 0.1:
+                self.animate_handler = self.camera.slide()
+                
 
     def wheelEvent(self, e):
         self.mouse_wheel_handler.send(e)
