@@ -166,7 +166,9 @@ if __name__ == '__main__':
 
     w = Viewer()
     w.show()
-    
+
+
+    w.camera.pivot = w.robot.body[w.robot.root].frame.center
     w.camera.frame.center[2] = 5
 
     sys.exit(app.exec_())

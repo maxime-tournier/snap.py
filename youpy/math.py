@@ -273,14 +273,11 @@ class Quaternion(np.ndarray):
     
     def log(self):
         '''quaternion logarithm (doubled)'''
-        
-        half_theta = math.acos(self.real)
-        
-        if math.fabs(half_theta) < sys.float_info.epsilon:
-            return 2.0 * self.imag / self.real
-        
-        half_res = (half_theta / math.sin(half_theta)) * np.array(self.imag)
-        return 2.0 * half_res
+
+        axis, angle = self.axis_angle()
+
+        if axis is None: return np.zeros(3)
+        return angle * axis
     
 
     def angle(self):
