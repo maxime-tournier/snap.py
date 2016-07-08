@@ -14,10 +14,7 @@ from OpenGL.GLU import *
 from prout import gl
 
 class Viewer(prout.Viewer):
-
     
-
-        
 
     def draw_cross(self):
 
