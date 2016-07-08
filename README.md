@@ -12,13 +12,14 @@ The goal is to have something easy to hack from for trying stuff out.
 - axis clamping (double click)
 - animation control (on/off/fps)
 - spin/slide when rotating/translating fast
+- basic lighting
+- axis display
 
 ## TODO
 
-- lighting
-- text overlay
-- easy/pythonic keybindings
-- axis/grid
 - picking
 - set pivot point
+- text overlay
+- easy/pythonic keybindings
+- grid
 - PyQt/PySide 4/5 compatible
