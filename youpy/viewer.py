@@ -290,7 +290,7 @@ class Viewer(QtOpenGL.QGLWidget):
         self.update_timer = QtCore.QTimer()
         self.update_timer.setSingleShot( True )
         self.update_timer.setInterval(0)
-        self.connect(self.update_timer, QtCore.SIGNAL("timeout()"), self.updateGL)
+        self.connect(self.update_timer, QtCore.SIGNAL("timeout()"), self.update)
 
         # a nice signal to control it
         self.update_needed.connect(self.update_timer.start)
@@ -340,11 +340,15 @@ class Viewer(QtOpenGL.QGLWidget):
         self.init()
 
 
+    def update(self):
+        if not self.animation.isActive():
+            self.updateGL()
+
     def mouseMoveEvent(self, e):
         
         if self.mouse_move_handler:
             self.mouse_move_handler.send( e )
-            self.updateGL()
+            self.update()
             
     def mousePressEvent(self, e):
         self.draw_handler = None
@@ -352,18 +356,18 @@ class Viewer(QtOpenGL.QGLWidget):
         
         if e.button() == QtCore.Qt.LeftButton:
             self.mouse_move_handler = self.camera.rotate(e)
-            self.updateGL()
+            self.update()
             
         if e.button() == QtCore.Qt.RightButton:
             self.mouse_move_handler = self.camera.translate(e)
-            self.updateGL()
+            self.update()
 
 
     def mouseDoubleClickEvent(self, e):
 
         if e.button() == QtCore.Qt.LeftButton:
             self.camera.axis_align()
-            self.updateGL()
+            self.update()
 
 
     def animate(self): pass
@@ -384,18 +388,18 @@ class Viewer(QtOpenGL.QGLWidget):
             
             if norm(self.camera.dframe.log()) > 0.1:
                 self.draw_handler = self.camera.spin()
-                self.updateGL()
+                self.update()
                 
         if e.button() == QtCore.Qt.RightButton:
             
             if norm(self.camera.dframe.log()) > 0.1:
                 self.draw_handler = self.camera.slide()
-                self.updateGL()
+                self.update()
                 
 
     def wheelEvent(self, e):
         self.mouse_wheel_handler.send(e)
-        self.updateGL()
+        self.update()
 
 
     def draw(self):
