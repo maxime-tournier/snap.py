@@ -379,7 +379,9 @@ class Viewer(QtOpenGL.QGLWidget):
         if e.key() == QtCore.Qt.Key_Return:
             if self.animation.isActive(): self.animation.stop()
             else: self.animation.start()
-            
+
+        if e.key() == QtCore.Qt.Key_Escape:
+            self.close()
         
     def mouseReleaseEvent(self, e):
         self.mouse_move_handler = None
