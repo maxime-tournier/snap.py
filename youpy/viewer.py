@@ -147,7 +147,8 @@ class Camera(object):
 
 
     def axis_align(self):
-
+        '''align camera with nearest axis'''
+        
         pos = np.abs(self.frame.center - self.pivot).tolist()
         
         index = pos.index( max(pos) )
@@ -175,7 +176,8 @@ class Camera(object):
         
         
     def lookat(self, target, **kwargs):
-
+        '''make camera point at target'''
+        
         local_target = self.frame.inv()(target)
         q = Quaternion.from_vectors(-ez, local_target)
         
@@ -185,7 +187,7 @@ class Camera(object):
         up = kwargs.get('up', ey)
         qinv = Quaternion.from_vectors(ey, self.frame.orient.inv()(up))
 
-        if math.fabs(q.real) < 1e-5: return
+        if math.fabs(q.real) < Quaternion.epsilon: return
 
         # gnomonic projection
         pqinv = qinv / q.real
@@ -224,6 +226,7 @@ class Camera(object):
     @coroutine
     def mouse_rotate(self, start):
         '''rotate camera from mouse move events'''
+
         start_pos = start.pos()
 
         start_frame = Rigid3()
@@ -318,7 +321,7 @@ class Viewer(QtOpenGL.QGLWidget):
         self.setWindowTitle('Viewer')
 
         # display flags
-        # TODO make these properties and emit update_needed
+        # TODO make these properties and emit update_needed ?
         self.show_axis = True
         self.show_grid = False
         
