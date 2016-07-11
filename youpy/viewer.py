@@ -23,6 +23,7 @@ class Camera(object):
 
         # frame/pivot
         self.frame = Rigid3()
+        self.frame.center[2] = 1
         self.pivot = vec(0, 0, 0)
 
         # frustum
@@ -156,8 +157,29 @@ class Camera(object):
         self.frame.orient = self.frame.orient * q
         
         
+    def lookat(self, target, **kwargs):
 
-            
+        local_target = self.frame.inv()(target)
+        q = Quaternion.from_vectors(-ez, local_target)
+        
+        self.frame.orient = self.frame.orient * q
+        
+        # project q.inv() onto geodesic around z
+        up = kwargs.get('up', ey)
+        qinv = Quaternion.from_vectors(ey, self.frame.orient.inv()(up))
+
+        if math.fabs(q.real) < 1e-5: return
+
+        # gnomonic projection
+        pqinv = qinv / q.real
+        
+        r = Quaternion()
+        r.imag[2] = pqinv.imag[2]
+        r /= norm(r)
+        
+        self.frame.orient  = self.frame.orient * r
+        
+        
     @coroutine
     def zoom(self):
 

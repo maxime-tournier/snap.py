@@ -12,6 +12,9 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 
 from youpy import gl
+import numpy as np
+
+
 
 class Viewer(youpy.Viewer):
     
@@ -33,8 +36,21 @@ class Viewer(youpy.Viewer):
                 glVertex(0, 0, 1)
 
 
+    def test(self):
+        self.target = 2 * (2 * np.random.rand(3) - np.ones(3))
+
+        self.camera.frame.center[2] = 5        
+        self.camera.lookat( self.target )
+        
+
     def init(self):
-        pass
+        self.test()
+
+    def keyPressEvent(self, e):
+        youpy.Viewer.keyPressEvent(self, e)
+
+        self.test()
+        self.updateGL()
 
     def animate(self):
         import time
@@ -47,10 +63,10 @@ class Viewer(youpy.Viewer):
         # glColor(0.4, 0.4, 1.0)
         # gl.sphere()
 
-        # with gl.push_matrix():
-        #     glTranslate(*self.camera.pivot)
-        #     glColor(0, 0, 0)
-        #     self.draw_cross()
+        with gl.push_matrix():
+             glTranslate(*self.target)
+             glColor(0, 0, 0)
+             self.draw_cross()
 
         
 if __name__ == '__main__':
@@ -69,8 +85,10 @@ if __name__ == '__main__':
     thread.start()
 
     w = Viewer()
+
+    
     w.show()
-    w.camera.frame.center[2] = 5
+
 
     
     def cleanup():
