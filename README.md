@@ -17,12 +17,14 @@ The goal is to have something easy to hack from for trying stuff out.
 - axis display
 - PySide 4/5 compatible
 - fullscreen
+- point under pixel
+- set pivot point
+
 
 ## TODO
 
 - save/restore state
 - picking
-- set pivot point
 - text overlay
 - easy/pythonic keybindings
 - grid

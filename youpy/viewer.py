@@ -70,7 +70,7 @@ class Camera(object):
         return res
 
 
-    def normalize(self, x, y):
+    def pixel_coords(self, x, y):
         '''normalize mouse coodinates'''
         
         rx = float(x) / float(self.owner.width())
@@ -87,15 +87,25 @@ class Camera(object):
         return vec(res.x(), res.y(), res.z()) / res.w()
     
 
-    def depth(self, p):
-        read = glReadPixels(p.x(), self.owner.height() - 1 - p.y(),
+    def pixel_depth(self, px, py):
+        read = glReadPixels(px, self.owner.height() - 1 - py,
                            1, 1,
                            GL_DEPTH_COMPONENT, GL_FLOAT)
 
         res = read[0][0]
         return res if res < 1.0 else None
 
-    
+
+
+    def point_under_pixel(self, x, y):
+        z = self.pixel_depth(x, y)
+        if z is None: return None
+        
+        x, y = self.pixel_coords(x, y)
+
+        Pinv, ok = self.projection.inverted()
+        return self.unproject(Pinv, x, y, z)
+        
     @coroutine
     def translate(self, start):
 
@@ -110,13 +120,13 @@ class Camera(object):
         z = self.znear
         z = (z - self.znear) / (self.zfar - self.znear)
 
-        sx, sy = self.normalize(start_pos.x(), start_pos.y())
+        sx, sy = self.pixel_coords(start_pos.x(), start_pos.y())
         s = self.unproject(Pinv, sx, sy, z)
 
         while True:
             ev = yield
 
-            ex, ey = self.normalize(ev.pos().x(), ev.pos().y())
+            ex, ey = self.pixel_coords(ev.pos().x(), ev.pos().y())
             e = self.unproject(Pinv, ex, ey, z)
 
             d = e - s
@@ -216,14 +226,14 @@ class Camera(object):
 
         Pinv, ok = self.projection.inverted()
 
-        sx, sy = self.normalize(start_pos.x(), start_pos.y())
+        sx, sy = self.pixel_coords(start_pos.x(), start_pos.y())
         s = start_frame( self.unproject(Pinv, sx, sy) )
 
         
         while True:
             ev = yield
 
-            ex, ey = self.normalize(ev.pos().x(), ev.pos().y())
+            ex, ey = self.pixel_coords(ev.pos().x(), ev.pos().y())
             e = start_frame( self.unproject(Pinv, ex, ey) )
 
             f = Rigid3()
@@ -391,15 +401,10 @@ class Viewer(QtOpenGL.QGLWidget):
             
         if e.button() == QtCore.Qt.RightButton:
             if e.modifiers() == QtCore.Qt.SHIFT:
-                d = self.camera.depth( e.pos() )
                 
-                if d is not None:
-                    Pinv, ok = self.camera.projection.inverted()
-                    px, py = self.camera.normalize(e.pos().x(), e.pos().y())
-                    
-                    point = self.camera.unproject(Pinv, px, py, d)
-                    self.camera.pivot = self.camera.frame(point)
-                    
+                p = self.camera.point_under_pixel(e.pos().x(), e.pos().y())
+                if p is not None:
+                    self.camera.pivot = self.camera.frame(p)
                     self.update()
             else:
                 self.mouse_move_handler = self.camera.translate(e)
