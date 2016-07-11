@@ -71,7 +71,7 @@ class Camera(object):
 
 
     def pixel_coords(self, x, y):
-        '''normalize mouse coodinates'''
+        '''pixel -> viewport coords'''
         
         rx = float(x) / float(self.owner.width())
         ry = float(self.owner.height() - 1 - y) / float(self.owner.height())
@@ -80,7 +80,8 @@ class Camera(object):
 
 
     def unproject(self, Pinv, x, y, z = 0):
-        '''unproject normalized coordinates'''
+        '''unproject viewport coordinates'''
+        
         d = 2.0 * QtGui.QVector4D(x, y, z, 1.0) - QtGui.QVector4D(1, 1, 1, 1)
         res = Pinv.map(d)
 
@@ -88,6 +89,7 @@ class Camera(object):
     
 
     def pixel_depth(self, px, py):
+        '''read depth under pixel, or None'''
         read = glReadPixels(px, self.owner.height() - 1 - py,
                            1, 1,
                            GL_DEPTH_COMPONENT, GL_FLOAT)
@@ -98,6 +100,7 @@ class Camera(object):
 
 
     def point_under_pixel(self, x, y):
+        '''point under pixel or None'''
         z = self.pixel_depth(x, y)
         if z is None: return None
         
@@ -105,10 +108,10 @@ class Camera(object):
 
         Pinv, ok = self.projection.inverted()
         return self.unproject(Pinv, x, y, z)
-        
-    @coroutine
-    def translate(self, start):
 
+    
+    @coroutine
+    def mouse_translate(self, start):
         start_pos = start.pos()
 
         start_frame = Rigid3()
@@ -217,7 +220,7 @@ class Camera(object):
 
 
     @coroutine
-    def rotate(self, start):
+    def mouse_rotate(self, start):
 
         start_pos = start.pos()
 
@@ -396,7 +399,7 @@ class Viewer(QtOpenGL.QGLWidget):
         self.camera.dframe = Rigid3()
         
         if e.button() == QtCore.Qt.LeftButton:
-            self.mouse_move_handler = self.camera.rotate(e)
+            self.mouse_move_handler = self.camera.mouse_rotate(e)
             self.update()
             
         if e.button() == QtCore.Qt.RightButton:
@@ -407,7 +410,7 @@ class Viewer(QtOpenGL.QGLWidget):
                     self.camera.pivot = self.camera.frame(p)
                     self.update()
             else:
-                self.mouse_move_handler = self.camera.translate(e)
+                self.mouse_move_handler = self.camera.mouse_translate(e)
                 self.update()
 
 
