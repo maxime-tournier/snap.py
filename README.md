@@ -19,6 +19,7 @@ The goal is to have something easy to hack from for trying stuff out.
 
 ## TODO
 
+- save/restore state
 - picking
 - set pivot point
 - text overlay
