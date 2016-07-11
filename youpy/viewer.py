@@ -398,15 +398,25 @@ class Viewer(QtOpenGL.QGLWidget):
     def animate(self): pass
 
 
+    def toggle_fullscreen(self):
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
+
 
     def keyPressEvent(self, e):
 
         if e.key() == QtCore.Qt.Key_Return:
-            if self.animation.isActive(): self.animation.stop()
-            else: self.animation.start()
+            if e.modifiers() == QtCore.Qt.CTRL:
+                self.toggle_fullscreen()
+            else:
+                if self.animation.isActive(): self.animation.stop()
+                else: self.animation.start()
 
         if e.key() == QtCore.Qt.Key_Escape:
             self.close()
+
         
     def mouseReleaseEvent(self, e):
         self.mouse_move_handler = None
