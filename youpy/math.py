@@ -311,8 +311,6 @@ class Quaternion(np.ndarray):
         res.real = x.dot(y)
         res.imag = np.cross(x, y)
 
-        print('res', res)
-        
         theta = norm(res)
         res.real += theta
 
