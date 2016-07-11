@@ -112,6 +112,7 @@ class Camera(object):
     
     @coroutine
     def mouse_translate(self, start):
+        '''translate camera from mouse move events'''
         start_pos = start.pos()
 
         start_frame = Rigid3()
@@ -197,8 +198,9 @@ class Camera(object):
         
         
     @coroutine
-    def zoom(self):
-
+    def mouse_zoom(self):
+        '''ajust zoom from mouse'''
+        
         while True:
             ev = yield
             degrees = float(ev.delta()) / 256.0
@@ -221,7 +223,7 @@ class Camera(object):
 
     @coroutine
     def mouse_rotate(self, start):
-
+        '''rotate camera from mouse move events'''
         start_pos = start.pos()
 
         start_frame = Rigid3()
@@ -262,6 +264,7 @@ class Camera(object):
 
     @coroutine
     def spin(self):
+        '''rotate camera around pivot (damped) on each call to next'''
 
         delta = Rigid3()
         delta[:] = self.dframe 
@@ -281,6 +284,7 @@ class Camera(object):
 
     @coroutine            
     def slide(self):
+        '''translate camera with constant local direction (damped) on each call to next'''
         delta = Rigid3()
         delta[:] = self.dframe 
 
@@ -308,7 +312,7 @@ class Viewer(QtOpenGL.QGLWidget):
 
         # 
         self.mouse_move_handler = None
-        self.mouse_wheel_handler = self.camera.zoom()
+        self.mouse_wheel_handler = self.camera.mouse_zoom()
         self.draw_handler = None
         
         self.setWindowTitle('Viewer')
