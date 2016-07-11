@@ -14,6 +14,7 @@ from .tool import *
 from . import gl
 
 import time
+import sys
 
 class Camera(object):
     
@@ -279,8 +280,12 @@ class Camera(object):
             self.frame[:] = self.frame * delta
 
 
+
+
             
 class Viewer(QtOpenGL.QGLWidget):
+
+    alt_button = QtCore.Qt.CTRL if sys.platform == 'darwin' else QtCore.Qt.ALT
     
     def __init__(self, parent=None):
         super(Viewer, self).__init__(parent)
@@ -408,7 +413,7 @@ class Viewer(QtOpenGL.QGLWidget):
     def keyPressEvent(self, e):
 
         if e.key() == QtCore.Qt.Key_Return:
-            if e.modifiers() == QtCore.Qt.CTRL:
+            if e.modifiers() == Viewer.alt_button:
                 self.toggle_fullscreen()
             else:
                 if self.animation.isActive(): self.animation.stop()
