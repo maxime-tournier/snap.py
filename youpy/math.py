@@ -308,7 +308,8 @@ class Quaternion(np.ndarray):
         
         res = Quaternion()
 
-        res.real = x.dot(y)
+        dot = x.dot(y)
+        res.real = dot
         res.imag = np.cross(x, y)
 
         theta = norm(res)
@@ -318,7 +319,7 @@ class Quaternion(np.ndarray):
         if theta < Quaternion.epsilon:
 
             # x == y
-            if res.real > 0: return Quaternion()
+            if dot >= 0: return Quaternion()
             
             # x == -y
             # TODO make up vector configurable
