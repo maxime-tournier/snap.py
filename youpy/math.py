@@ -316,7 +316,11 @@ class Quaternion(np.ndarray):
 
         theta = norm(res)
         if theta < Quaternion.epsilon:
-            # pi rotation, axis is arbitrary (pick ey)
+
+            # x == y
+            if res.real > 0: return Quaternion()
+            
+            # x == -y
             # TODO make up vector configurable
             return Quaternion.exp( math.pi * ey )
             
