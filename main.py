@@ -36,41 +36,20 @@ class Viewer(youpy.Viewer):
                 glVertex(0, 0, 1)
 
 
-    def test(self):
-        self.target = 2 * (2 * np.random.rand(3) - np.ones(3))
-
-
-        self.camera.frame.center[2] = -5
-        self.target = vec(0, 0, 1)        
-        self.camera.lookat( self.target )
-        
-
     def init(self):
-        self.test()
-
-    def keyPressEvent(self, e):
-        youpy.Viewer.keyPressEvent(self, e)
-
-        self.test()
-        self.updateGL()
+        pass
 
     def animate(self):
         import time
         print('animate', time.time())
         
     def draw(self):
-        print('draw')
-        glLineWidth(3.0)
-
-        # glColor(0.4, 0.4, 1.0)
-        # gl.sphere()
-
         with gl.push_matrix():
-             glTranslate(*self.target)
-             glColor(0, 0, 0)
-             self.draw_cross()
+            glTranslate(*self.camera.pivot)
+            self.draw_cross()
 
-        
+
+     
 if __name__ == '__main__':
     
     app = QtGui.QApplication(sys.argv)
@@ -87,11 +66,10 @@ if __name__ == '__main__':
     thread.start()
 
     w = Viewer()
-
-    
     w.show()
 
 
+    
     
     def cleanup():
         import os

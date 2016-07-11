@@ -73,27 +73,29 @@ class Camera(object):
     def normalize(self, x, y):
         '''normalize mouse coodinates'''
         
-        P = self.projection
-        v = QtGui.QVector4D(1, -1, -self.frame.center[2], 1)
-
-        u = P.map(v)
-
         rx = float(x) / float(self.owner.width())
-        ry = float(y) / float(self.owner.height())
-
-        ry = 1.0 - ry
+        ry = float(self.owner.height() - 1 - y) / float(self.owner.height())
 
         return rx, ry
 
 
     def unproject(self, Pinv, x, y, z = 0):
-
+        '''unproject normalized coordinates'''
         d = 2.0 * QtGui.QVector4D(x, y, z, 1.0) - QtGui.QVector4D(1, 1, 1, 1)
         res = Pinv.map(d)
-        
-        return vec(res.x(), res.y(), res.z())
+
+        return vec(res.x(), res.y(), res.z()) / res.w()
     
 
+    def depth(self, p):
+        read = glReadPixels(p.x(), self.owner.height() - 1 - p.y(),
+                           1, 1,
+                           GL_DEPTH_COMPONENT, GL_FLOAT)
+
+        res = read[0][0]
+        return res if res < 1.0 else None
+
+    
     @coroutine
     def translate(self, start):
 
@@ -102,27 +104,27 @@ class Camera(object):
         start_frame = Rigid3()
         start_frame[:] = self.frame
 
-        unprojection, ok = self.projection.inverted()
+        Pinv, ok = self.projection.inverted()
         assert ok
 
         z = self.znear
         z = (z - self.znear) / (self.zfar - self.znear)
 
         sx, sy = self.normalize(start_pos.x(), start_pos.y())
-        s = self.unproject(unprojection, sx, sy, z)
+        s = self.unproject(Pinv, sx, sy, z)
 
         while True:
             ev = yield
 
             ex, ey = self.normalize(ev.pos().x(), ev.pos().y())
-            e = self.unproject(unprojection, ex, ey, z)
+            e = self.unproject(Pinv, ex, ey, z)
 
             d = e - s
 
             scale = norm(self.frame.center - self.pivot)
 
             f = Rigid3()
-            f.center = scale * self.translation_sensitivity * d 
+            f.center = scale * 10 * self.translation_sensitivity * d 
 
             next_frame = start_frame * f.inv()
 
@@ -230,7 +232,7 @@ class Camera(object):
 
             scale = norm(self.frame.center - self.pivot)
             
-            f.orient = Quaternion.exp( scale * self.rotation_sensitivity * f.orient.log() )
+            f.orient = Quaternion.exp( scale * 10 * self.rotation_sensitivity * f.orient.log() )
             
             t = Rigid3()
             t.center = self.pivot
@@ -278,7 +280,6 @@ class Camera(object):
             
             delta = Rigid3.exp( vel )
             self.frame[:] = self.frame * delta
-
 
 
 
@@ -389,8 +390,20 @@ class Viewer(QtOpenGL.QGLWidget):
             self.update()
             
         if e.button() == QtCore.Qt.RightButton:
-            self.mouse_move_handler = self.camera.translate(e)
-            self.update()
+            if e.modifiers() == QtCore.Qt.SHIFT:
+                d = self.camera.depth( e.pos() )
+                
+                if d is not None:
+                    Pinv, ok = self.camera.projection.inverted()
+                    px, py = self.camera.normalize(e.pos().x(), e.pos().y())
+                    
+                    point = self.camera.unproject(Pinv, px, py, d)
+                    self.camera.pivot = self.camera.frame(point)
+                    
+                    self.update()
+            else:
+                self.mouse_move_handler = self.camera.translate(e)
+                self.update()
 
 
     def mouseDoubleClickEvent(self, e):
@@ -437,8 +450,10 @@ class Viewer(QtOpenGL.QGLWidget):
             if norm(self.camera.dframe.log()) > 0.1:
                 self.draw_handler = self.camera.slide()
                 self.update()
+
                 
 
+                
     def wheelEvent(self, e):
         self.mouse_wheel_handler.send(e)
         self.update()
