@@ -15,6 +15,7 @@ The goal is to have something easy to hack from for trying stuff out.
 - spin/slide when rotating/translating fast
 - basic lighting
 - axis display
+- PySide 4/5 compatible
 
 ## TODO
 
@@ -23,7 +24,7 @@ The goal is to have something easy to hack from for trying stuff out.
 - text overlay
 - easy/pythonic keybindings
 - grid
-- PyQt/PySide 4/5 compatible
+- PyQt compatible
 
 
 ## Usage
