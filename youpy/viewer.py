@@ -1,3 +1,6 @@
+# MIT license
+# tournier.maxime@gmail.com
+
 from PySide import QtCore, QtGui, QtOpenGL
 
 import OpenGL
