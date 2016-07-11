@@ -16,6 +16,7 @@ The goal is to have something easy to hack from for trying stuff out.
 - basic lighting
 - axis display
 - PySide 4/5 compatible
+- fullscreen
 
 ## TODO
 
