@@ -14,7 +14,7 @@ from OpenGL.GLU import *
 from youpy import gl
 import numpy as np
 
-
+from youpy.math import *
 
 class Viewer(youpy.Viewer):
     
@@ -39,7 +39,9 @@ class Viewer(youpy.Viewer):
     def test(self):
         self.target = 2 * (2 * np.random.rand(3) - np.ones(3))
 
-        self.camera.frame.center[2] = 5        
+
+        self.camera.frame.center[2] = -5
+        self.target = vec(0, 0, 1)        
         self.camera.lookat( self.target )
         
 

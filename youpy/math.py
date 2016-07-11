@@ -126,6 +126,8 @@ class Rigid3(np.ndarray):
     
     
 class Quaternion(np.ndarray):
+
+    epsilon = sys.float_info.epsilon
     
     def __new__(cls, *args):
         return np.ndarray.__new__(cls, 4)
@@ -213,9 +215,9 @@ class Quaternion(np.ndarray):
 
         res = Quaternion()
         
-        if math.fabs(theta) < sys.float_info.epsilon:
+        if math.fabs(theta) < Quaternion.epsilon:
             res.imag = x / 2.0
-            res.normalize()
+            # res.normalize()
             return res
 
         half_theta = theta / 2.0
@@ -235,7 +237,7 @@ class Quaternion(np.ndarray):
 
         theta = norm(x)
 
-        if theta < sys.float_info.epsilon:
+        if theta < Quaternion.epsilon:
             return np.identity(3)
         
         n = x / theta
@@ -295,7 +297,7 @@ class Quaternion(np.ndarray):
         q = self if self.real >= 0 else -self
         
         half_angle = math.acos( min(q.real, 1.0) )
-        axis = q.imag / math.sin( half_angle ) if half_angle > sys.float_info.epsilon else None
+        axis = q.imag / math.sin( half_angle ) if half_angle > Quaternion.epsilon else None
 
         return axis, 2 * half_angle
 
@@ -308,14 +310,21 @@ class Quaternion(np.ndarray):
 
         res.real = x.dot(y)
         res.imag = np.cross(x, y)
+
+        print('res', res)
         
         theta = norm(res)
         res.real += theta
 
-        res.normalize()
-
+        theta = norm(res)
+        if theta < Quaternion.epsilon:
+            # pi rotation, axis is arbitrary (pick ey)
+            # TODO make up vector configurable
+            return Quaternion.exp( math.pi * ey )
+            
+        res /= theta
         return res
-
+    
     
     @staticmethod
     def hat(v):
