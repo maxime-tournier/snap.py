@@ -282,15 +282,6 @@ class Quaternion(np.ndarray):
         return angle * axis
     
 
-    def angle(self):
-        '''rotation angle'''
-        return 2 * math.acos(self.real)
-
-    def axis(self):
-        '''rotation axis'''
-        return self.imag / math.sin(  math.acos(self.real) )
-
-
     def axis_angle(self):
         '''rotation axis/angle'''
 
