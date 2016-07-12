@@ -1,4 +1,4 @@
-`you.py` is a simple python package that does some of what
+`snap.py` is a simple python package that does some of what
 [QGLViewer](http://libqglviewer.com/) does, but in pure python. It
 provides a QGLWidget with basic viewing features.
 
