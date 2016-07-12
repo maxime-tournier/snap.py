@@ -1,4 +1,4 @@
-import youpy
+import snap
 
 from PySide import QtGui
 
