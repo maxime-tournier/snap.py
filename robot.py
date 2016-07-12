@@ -1,4 +1,4 @@
-import youpy
+import snap
 
 from PySide import QtGui
 
@@ -11,8 +11,8 @@ import OpenGL
 from OpenGL.GL import *
 from OpenGL.GLU import *
 
-from youpy import gl
-from youpy.math import *
+from snap import gl
+from snap.math import *
 
 import time
 
@@ -139,7 +139,7 @@ class Robot(object):
                     gl.cylinder()
                 
 
-class Viewer(youpy.Viewer):
+class Viewer(snap.Viewer):
 
     def init(self):
         

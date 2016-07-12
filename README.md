@@ -24,7 +24,7 @@ The goal is to have something easy to hack from for trying stuff out.
 ## TODO
 
 - save/restore state
-- picking
+- picking ?
 - text overlay
 - easy/pythonic keybindings
 - grid

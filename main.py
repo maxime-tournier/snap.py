@@ -11,12 +11,12 @@ import OpenGL
 from OpenGL.GL import *
 from OpenGL.GLU import *
 
-from youpy import gl
+from snap import gl
 import numpy as np
 
-from youpy.math import *
+from snap.math import *
 
-class Viewer(youpy.Viewer):
+class Viewer(snap.Viewer):
     
 
     def draw_cross(self):

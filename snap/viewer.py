@@ -450,7 +450,10 @@ class Viewer(QtOpenGL.QGLWidget):
         if e.key() == QtCore.Qt.Key_Escape:
             self.close()
 
-        
+        if e.text() == 'a':
+            self.show_axis = not self.show_axis
+            self.update()
+            
     def mouseReleaseEvent(self, e):
         self.mouse_move_handler = None
 
@@ -466,7 +469,6 @@ class Viewer(QtOpenGL.QGLWidget):
                 self.draw_handler = self.camera.slide()
                 self.update()
 
-                
 
                 
     def wheelEvent(self, e):
