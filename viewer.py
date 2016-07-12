@@ -44,7 +44,7 @@ class Camera(object):
         self.damping = 1e-2
         self.stop_velocity = 1e-3
         
-        
+
     @property
     def projection(self):
         res = QtGui.QMatrix4x4()
@@ -361,7 +361,18 @@ class Viewer(QtOpenGL.QGLWidget):
         return QtCore.QSize(100, 300)
 
     def sizeHint(self):
-        return QtCore.QSize(400, 400)
+        rec = QtGui.QApplication.desktop().screenGeometry()
+
+        # widget height is half screen height
+        factor = 1.0 / 2.0
+
+        height = factor * rec.height()
+
+        # 4/3 form factor
+        ratio = 4.0 / 3.0
+        width = ratio * height
+        
+        return QtCore.QSize(width, height)
 
 
     def resizeGL(self, w, h):
