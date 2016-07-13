@@ -17,7 +17,17 @@ def sphere(**kwargs):
 sphere.quad = gluNewQuadric()
 
 
+def circle(**kwargs):
+    
+    radius = kwargs.get('radius', 0.5)
+    steps = kwargs.get('steps', 16)    
 
+    with begin(GL_LINE_LOOP):
+        for i in range(steps):
+            alpha = 2 * i * math.pi / steps
+            glVertex(radius * math.cos(alpha), radius * math.sin(alpha))
+
+            
 def cylinder(**kwargs):
     
     radius = kwargs.get('radius', 0.5)
