@@ -24,6 +24,8 @@ ez = vec(0, 0, 1)
 
 class Rigid3(np.ndarray):
 
+    dim = 6
+    
     # note: lie algebra coordinates are (rotation, translation)
 
     # TODO: make a twist class ?
@@ -123,10 +125,14 @@ class Rigid3(np.ndarray):
         res[3:] = self.orient.dlog().dot( self.orient.conj()( self.center ) )
 
         return res
+
+
+
     
     
 class Quaternion(np.ndarray):
 
+    dim = 3
     epsilon = sys.float_info.epsilon
     
     def __new__(cls, *args):
