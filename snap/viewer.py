@@ -536,8 +536,41 @@ class Viewer(QtOpenGL.QGLWidget):
         glFinish()
 
         
+from contextlib import contextmanager
 
-        
-
-
+@contextmanager
+def app():
     
+    import sys
+    res = QtGui.QApplication(sys.argv)
+
+    try:
+        yield res
+    finally:
+        sys.exit(res.exec_())
+    
+def run():
+
+    import sys
+
+    main = sys.modules['__main__'].__dict__
+    
+    init = main.get('init', None)
+    draw = main.get('draw', None)
+    animate = main.get('animate', None)
+        
+    class SimpleViewer(Viewer):
+    
+        def init(self):
+            if init: init()
+
+        def draw(self):
+            if draw: draw()
+
+        def animate(self):
+            if animate: animate()
+
+
+    with app():
+        w = SimpleViewer()
+        w.show()
