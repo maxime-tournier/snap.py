@@ -380,8 +380,22 @@ def make_skeleton():
     lforearm = body(name = 'lforearm', dim = size * vec(0.5, 2, 0.5))
     rforearm = body(name = 'rforearm', dim = size * vec(0.5, 2, 0.5))    
 
-    bodies = [head, trunk, larm, rarm, lforearm, rforearm]
+    lfemur = body(name = 'lfemur', dim = size * vec(0.5, 3, 0.5) )
+    rfemur = body(name = 'rfemur', dim = size * vec(0.5, 3, 0.5) )    
 
+    ltibia = body(name = 'ltibia', dim = size * vec(0.5, 2, 0.5) )
+    rtibia = body(name = 'rtibia', dim = size * vec(0.5, 2, 0.5) )    
+    
+    
+    bodies = [head, trunk,
+              larm, rarm,
+              lforearm, rforearm,
+              lfemur, rfemur,
+              ltibia, rtibia ]
+
+
+
+    
     # joints
     neck = spherical( (trunk, Rigid3(center = vec(0, 3 * trunk.dim[1] / 5, 0))),
                       (head, Rigid3(center = vec(0, -head.dim[1] / 2, 0))),
@@ -408,10 +422,40 @@ def make_skeleton():
     lelbow = hinge( (larm, Rigid3(center = vec(0, -larm.dim[1] / 2, 0))),
                         (lforearm, Rigid3(center = vec(0, lforearm.dim[1] / 2, 0))),
                         name = 'lelbow')
+
+
+    lhip = spherical( (trunk, Rigid3( center = vec(-trunk.dim[0] / 2,
+                                                  -trunk.dim[1] / 2,
+                                                  0))),
+                      (lfemur, Rigid3(center = vec(0, lfemur.dim[1] / 2, 0))),
+                      name = 'lhip')
+
+
+    rhip = spherical( (trunk, Rigid3( center = vec(trunk.dim[0] / 2,
+                                                  -trunk.dim[1] / 2,
+                                                  0))),
+                      (rfemur, Rigid3(center = vec(0, rfemur.dim[1] / 2, 0))),
+                      name = 'rhip')
     
-    joints = [neck, lshoulder, rshoulder, relbow, lelbow]
+    rknee = hinge( (rfemur, Rigid3(center = vec(0, -rfemur.dim[1] / 2, 0))),
+                   (rtibia, Rigid3(center = vec(0, rtibia.dim[1] / 2, 0))),
+                   name = 'rknee' )
+    
+    lknee = hinge( (lfemur, Rigid3(center = vec(0, -lfemur.dim[1] / 2, 0))),
+                   (ltibia, Rigid3(center = vec(0, ltibia.dim[1] / 2, 0))),
+                   name = 'lknee')
 
 
+    
+    joints = [neck,
+              lshoulder, rshoulder,
+              relbow, lelbow,
+              lhip, rhip,
+              lknee, rknee]
+
+
+
+    # constraints
     c1 = Constraint(lforearm, vec(0, -lforearm.dim[1] / 2, 0),
                    vec(-2, 1, 0),
                    1e3)
