@@ -5,7 +5,7 @@ from collections import namedtuple
 
 from snap.math import *
 
-from snap import viewer, gl
+from snap import viewer, gl, tool
 
 # TODO joint nullspace (subclass)
 
@@ -44,6 +44,7 @@ class Body(object):
         
         self.inertia_tensor[:3, :3] = np.diag(self.inertia)
         self.inertia_tensor[3:, 3:] = mass * np.identity(3)
+        
 
         
 class Joint(namedtuple('Joint', 'parent child name nullspace compliance')):
@@ -79,7 +80,7 @@ class Joint(namedtuple('Joint', 'parent child name nullspace compliance')):
         twist = np.zeros( 6 )
         
         twist[:3] = r.orient.log()
-        twist[3:] = r.orient.inv()(r.center)
+        twist[3:] = r.orient.inv()(r.center) # translation in local coords, as velocity
         
         return -self.nullspace.dot(twist)
         
@@ -99,7 +100,7 @@ class Constraint(namedtuple('Constraint', 'body local target stiffness')):
     
 
     def compliance(self):
-        return 1.0 / self.stiffness * np.identity(3)
+        return (1.0 / self.stiffness) * np.identity(3)
 
     
 class Vertex(namedtuple('Vertex', 'data in_edges out_edges')):
@@ -262,7 +263,7 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
             if type(v.data) is Constraint:
                 vector[v] = v.data.error()
                 
-    def step(self, vector, dt = 1):
+    def step(self, vector, dt = 1.0):
 
         for k, v in vector.items():
 
@@ -273,7 +274,11 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
                 delta.orient = Quaternion.exp( dt * v[:3])
                 delta.center = dt * v[3:]
 
-                k.data.dofs[:] = k.data.dofs * delta
+                k.data.dofs = k.data.dofs * delta
+                
+                # k.data.dofs.center = k.data.dofs.center + k.data.dofs.orient(delta.center)
+                # k.data.dofs.orient = k.data.dofs.orient * delta.orient
+
                 
         
 def factor(matrix, forward):
@@ -284,15 +289,18 @@ def factor(matrix, forward):
 
         for e in v.in_edges:
             me = matrix[e]
-            mv -= me.T.dot( matrix[e.src][0] ).dot(me)
+            assert e.src != v
+
+            # wtf! mv -= ... is buggy!
+            mv = mv - me.T.dot( matrix[e.src][0] ).dot(me)
+
+        mv_inv = np.linalg.inv( np.copy(mv) )
         
-        mv_inv = np.linalg.inv(mv)
         matrix[v] = (mv, mv_inv)
 
         for e in v.out_edges:
-            me = matrix[e]
-            me[:] = mv_inv.dot(me)
-
+            matrix[e] = mv_inv.dot(matrix[e])
+            
 
 def solve(vector, matrix, forward):
     
@@ -343,8 +351,8 @@ def make_skeleton():
         kwargs['nullspace'] = nullspace
 
         compliance = kwargs.get('compliance', 1) * np.identity(6)
-        compliance[3:, 3:] = 0
-
+        compliance[3:, 3:] = 0 * np.identity(3)
+        
         kwargs['compliance'] = compliance
         
         return Joint(*args, **kwargs)
@@ -359,8 +367,9 @@ def make_skeleton():
         kwargs['nullspace'] = nullspace
 
         compliance = np.zeros( (6, 6) )
+        
         compliance[:3, :3] = kwargs.get('compliance', 1) * np.outer(axis, axis)
-        compliance[3:, 3:] = 0
+        compliance[3:, 3:] = 0 * np.identity(3)
 
         kwargs['compliance'] = compliance
         
@@ -453,13 +462,13 @@ def make_skeleton():
 
 
     rankle = spherical( (rtibia, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
-                                       center = vec(0, -3 * rtibia.dim[1] / 5, -rtibia.dim[2] / 2))),
-                       (rfoot, Rigid3(center = vec(0, rfoot.dim[1] / 2, 0))),
+                                       center = vec(0, -3 * rtibia.dim[1] / 5, 0))),
+                       (rfoot, Rigid3(center = vec(0, 2 * rfoot.dim[1] / 5, 0))),
                        name = 'rankle' )
 
     lankle = spherical( (ltibia, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
-                                       center = vec(0, -3 * ltibia.dim[1] / 5, -ltibia.dim[2] / 2))),
-                        (lfoot, Rigid3(center = vec(0, lfoot.dim[1] / 2, 0))),
+                                       center = vec(0, -3 * ltibia.dim[1] / 5, 0))),
+                        (lfoot, Rigid3(center = vec(0, 2 * lfoot.dim[1] / 5, 0))),
                         name = 'lankle' )
     
 
@@ -474,7 +483,7 @@ def make_skeleton():
 
 
     # constraints
-    stiffness = 1e2
+    stiffness = 1e3
     
     c1 = Constraint(lforearm, vec(0, -lforearm.dim[1] / 2, 0),
                    vec(-2, 3, 1),
@@ -493,7 +502,6 @@ def make_skeleton():
     c4 = Constraint(rfoot, vec(0, -rfoot.dim[1] / 2, 0),
                    vec(2, -2, 0),
                     stiffness)
-
 
     
     constraints = [c1, c2, c3, c4]
@@ -529,7 +537,7 @@ def solver():
         solve(vector, matrix, forward)
         
         # step
-        dt = 1
+        dt = 1.0
         skeleton.step(vector, dt)
         
         yield
@@ -574,7 +582,32 @@ def animate():
     except StopIteration:
         import sys
         sys.exit(1)
+
+
+on_drag = None
+
+@tool.coroutine
+def dragger(c):
+
+    while True:
+        pos = yield
+        c.target[:] = pos
+
         
+def select(p):
     
+    for c in skeleton.constraints:
+
+        # print(c.body.name, norm(p - c.target))
+        if norm(p - c.target) < 0.2:
+            global on_drag
+            on_drag = dragger(c)
+
+
+def drag(p):
+    if on_drag: on_drag.send(p)
+
+    
+        
 viewer.run()
 

@@ -263,8 +263,30 @@ class Camera(object):
             self.frame[:] = next_frame
 
 
+    @coroutine
+    def mouse_drag(self, start):
 
+        start_pos = start.pos()
+                
+        start_frame = Rigid3()
+        start_frame[:] = self.frame
 
+        Pinv, ok = self.projection.inverted()        
+
+        z = self.pixel_depth(start_pos.x(), start_pos.y())
+        sx, sy = self.pixel_coords(start_pos.x(), start_pos.y())
+        
+        s = start_frame( self.unproject(Pinv, sx, sy, z) )
+
+        while True:
+            ev = yield
+
+            ex, ey = self.pixel_coords(ev.pos().x(), ev.pos().y())
+            e = start_frame( self.unproject(Pinv, ex, ey, z) )
+
+            self.owner.drag(e)
+            
+            
     @coroutine
     def spin(self):
         '''rotate camera around pivot (damped) on each call to next'''
@@ -411,14 +433,27 @@ class Viewer(QtOpenGL.QGLWidget):
         if self.mouse_move_handler:
             self.mouse_move_handler.send( e )
             self.update()
+
             
+    def select(self, p): pass
+    def drag(self, p): pass
+    
+    
     def mousePressEvent(self, e):
         self.draw_handler = None
         self.camera.dframe = Rigid3()
         
         if e.button() == QtCore.Qt.LeftButton:
-            self.mouse_move_handler = self.camera.mouse_rotate(e)
-            self.update()
+            if e.modifiers() == QtCore.Qt.SHIFT:
+                p = self.camera.point_under_pixel(e.pos().x(), e.pos().y())
+
+                if p is not None:
+                    self.select( self.camera.frame(p))
+                    self.mouse_move_handler = self.camera.mouse_drag(e)
+                
+            else:
+                self.mouse_move_handler = self.camera.mouse_rotate(e)
+                self.update()
             
         if e.button() == QtCore.Qt.RightButton:
             if e.modifiers() == QtCore.Qt.SHIFT:
@@ -559,7 +594,9 @@ def run():
     draw = main.get('draw', None)
     animate = main.get('animate', None)
     keypress = main.get('keypress', None)
-        
+    select = main.get('select', None)
+    drag = main.get('drag', None)        
+    
     class SimpleViewer(Viewer):
     
         def init(self):
@@ -568,6 +605,12 @@ def run():
         def draw(self):
             if draw: draw()
 
+        def select(self, p):
+            if select: select(p)
+
+        def drag(self, p):
+            if drag: drag(p)
+            
         def animate(self):
             if animate: animate()
 
