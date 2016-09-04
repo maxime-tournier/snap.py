@@ -48,13 +48,15 @@ class Rigid3(np.ndarray):
     def orient(self, value):
         self[3:] = value
 
-    def __new__(cls, *args):
+    def __new__(cls, *args, **kwargs):
         return np.ndarray.__new__(cls, 7)
         
-    def __init__(self):
+    def __init__(self, **kwargs):
         # TODO w should go first
         self[-1] = 1
         self[:6] = 0
+
+        for k, v in kwargs.items(): setattr(self, k, v)
         
     def inv(self):
         '''invert rigid transformations'''
