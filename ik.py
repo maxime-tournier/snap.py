@@ -66,7 +66,7 @@ class Joint(namedtuple('Joint', 'parent child name nullspace compliance')):
         dp = self.parent[1].inv().Ad()
         dc = self.child[1].inv().Ad()
 
-        return -self.nullspace.dot(r.inv().Ad() * dp), self.nullspace.dot(dc)
+        return -self.nullspace.dot(r.inv().Ad().dot(dp)), self.nullspace.dot(dc)
 
     def error(self):
         '''constraint violation'''
@@ -339,16 +339,27 @@ def make_skeleton():
     def spherical(*args, **kwargs):
         kwargs.setdefault('name', 'unnamed joint')
 
-        axis = kwargs.pop('axis', vec(1, 0, 0))
-
-        # nullspace = np.zeros( (3, 6) )
-        # nullspace[:, 3:] = np.identity(3)
-        
-
         nullspace = np.identity(6)
         kwargs['nullspace'] = nullspace
 
         compliance = kwargs.get('compliance', 1) * np.identity(6)
+        compliance[3:, 3:] = 0
+
+        kwargs['compliance'] = compliance
+        
+        return Joint(*args, **kwargs)
+
+
+    def hinge(*args, **kwargs):
+        kwargs.setdefault('name', 'unnamed joint')
+
+        axis = kwargs.pop('axis', vec(1, 0, 0))
+
+        nullspace = np.identity(6)
+        kwargs['nullspace'] = nullspace
+
+        compliance = np.zeros( (6, 6) )
+        compliance[:3, :3] = kwargs.get('compliance', 1) * np.outer(axis, axis)
         compliance[3:, 3:] = 0
 
         kwargs['compliance'] = compliance
@@ -377,35 +388,40 @@ def make_skeleton():
                       name = 'neck')
 
     lshoulder = spherical( (trunk, Rigid3(orient = Quaternion.exp( -math.pi / 4 * ez),
-                                          center = vec(-trunk.dim[0] / 2,
+                                          center = vec(- 3 * trunk.dim[0] / 5,
                                                        trunk.dim[1] / 2,
                                                        0))),
                            (larm, Rigid3(center = vec(0, larm.dim[1] / 2, 0))),
                            name = 'lshoulder' )
 
     rshoulder = spherical( (trunk, Rigid3(orient = Quaternion.exp( math.pi / 4 * ez),
-                                          center = vec(trunk.dim[0] / 2,
+                                          center = vec(3 * trunk.dim[0] / 5,
                                                        trunk.dim[1] / 2,
                                                        0))),
                            (rarm, Rigid3(center = vec(0, rarm.dim[1] / 2, 0))),
                            name = 'rshoulder' )
 
-    relbow = spherical( (rarm, Rigid3(center = vec(0, -rarm.dim[1] / 2, 0))),
+    relbow = hinge( (rarm, Rigid3(center = vec(0, -rarm.dim[1] / 2, 0))),
                         (rforearm, Rigid3(center = vec(0, rforearm.dim[1] / 2, 0))),
                         name = 'relbow' )
     
-    lelbow = spherical( (larm, Rigid3(center = vec(0, -larm.dim[1] / 2, 0))),
+    lelbow = hinge( (larm, Rigid3(center = vec(0, -larm.dim[1] / 2, 0))),
                         (lforearm, Rigid3(center = vec(0, lforearm.dim[1] / 2, 0))),
                         name = 'lelbow')
     
     joints = [neck, lshoulder, rshoulder, relbow, lelbow]
 
 
-    c = Constraint(lforearm, vec(0, -lforearm.dim[1] / 2, 0),
-                   vec(1, 1, 1),
-                   1e1)
+    c1 = Constraint(lforearm, vec(0, -lforearm.dim[1] / 2, 0),
+                   vec(-2, 1, 0),
+                   1e3)
+
+
+    c2 = Constraint(rforearm, vec(0, -rforearm.dim[1] / 2, 0),
+                   vec(2, 1, 0),
+                   1e3)
     
-    constraints = [c]
+    constraints = [c1, c2]
     
     
     return Skeleton(bodies, joints, constraints)
@@ -438,7 +454,8 @@ def solver():
         solve(vector, matrix, forward)
         
         # step
-        skeleton.step(vector, 1.0)
+        dt = 1
+        skeleton.step(vector, dt)
         
         yield
         
@@ -451,7 +468,25 @@ def draw():
     gl.glColor(1, 1, 1)
     skeleton.draw()
 
+    gl.glLineWidth(4)
+    gl.glPointSize(6)
+    
+    
+    for c in skeleton.constraints:
+        with gl.disable(gl.GL_LIGHTING):
 
+            gl.glColor(1, 0, 0)            
+            with gl.begin(gl.GL_POINTS):
+                gl.glVertex(c.target)
+
+            gl.glColor(1, 1, 0)
+            with gl.begin(gl.GL_LINES):
+                start = c.body.dofs(c.local)
+                end = c.target
+
+                gl.glVertex(start)
+                gl.glVertex(end)
+    
 def keypress(key):
     if key == ' ':
         next(s)
