@@ -27,7 +27,50 @@ def circle(**kwargs):
             alpha = 2 * i * math.pi / steps
             glVertex(radius * math.cos(alpha), radius * math.sin(alpha))
 
-            
+
+
+def cube(**kwargs):
+    
+    mode = kwargs.get('mode', GL_QUADS)
+    size = kwargs.get('size', 1)
+
+
+    def side():
+        # top
+        glNormal(0, 0, 1)
+        glVertex(1, 1, 1)
+        glVertex(-1, 1, 1)
+        glVertex(-1, -1, 1)
+        glVertex(1, -1, 1)        
+        
+    
+    with push_matrix():
+
+        # top
+        with begin(mode): side()
+
+        # back
+        glRotate(90, 1, 0, 0)
+        with begin(mode): side()
+
+        # bottom
+        glRotate(90, 1, 0, 0)
+        with begin(mode): side()
+
+        # front
+        glRotate(90, 1, 0, 0)
+        with begin(mode): side()
+
+        # right
+        glRotate(90, 0, 1, 0)
+        with begin(mode): side()
+
+        # left
+        glRotate(180, 0, 1, 0)
+        with begin(mode): side()
+
+        
+        
 def cylinder(**kwargs):
     
     radius = kwargs.get('radius', 0.5)

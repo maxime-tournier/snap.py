@@ -558,6 +558,7 @@ def run():
     init = main.get('init', None)
     draw = main.get('draw', None)
     animate = main.get('animate', None)
+    keypress = main.get('keypress', None)
         
     class SimpleViewer(Viewer):
     
@@ -570,6 +571,9 @@ def run():
         def animate(self):
             if animate: animate()
 
+        def keyPressEvent(self, e):
+            if keypress and keypress(e.text()): self.updateGL()
+            else: Viewer.keyPressEvent(self, e)
 
     with app():
         w = SimpleViewer()

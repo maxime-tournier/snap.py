@@ -5,9 +5,9 @@ from collections import namedtuple
 
 from snap.math import *
 
+from snap import viewer, gl
 
 # TODO joint nullspace (subclass)
-
 
 class Body(namedtuple('Body', 'mass inertia dim name dofs')):
 
@@ -20,7 +20,14 @@ class Body(namedtuple('Body', 'mass inertia dim name dofs')):
     def inertia_tensor(self):
         return np.identity(6)
 
+
+    def draw(self):
+        with gl.frame(self.dofs):
+            gl.glScale(* (self.dim  /2))
+            gl.cube()
     
+
+            
 class Joint(namedtuple('Joint', 'parent child name nullspace')):
 
     def __hash__(self):
@@ -29,8 +36,14 @@ class Joint(namedtuple('Joint', 'parent child name nullspace')):
     def __str__(self):
         return 'Joint({0}, {1})'.format(self.parent[0].name, self.child[0].name)
 
-    def jacobian(self):
 
+    def compliance_matrix(self):
+        rows, cols = self.nullspace.shape
+        return np.zeros( (rows, rows ) )
+    
+    def jacobian(self):
+        '''constraint jacobian'''
+        
         p = self.parent[0].dofs * self.parent[1]
         c = self.child[0].dofs * self.child[1]        
         
@@ -41,6 +54,21 @@ class Joint(namedtuple('Joint', 'parent child name nullspace')):
 
         return -self.nullspace.dot(r.inv().Ad() * dp), self.nullspace.dot(dc)
 
+    def error(self):
+        '''constraint violation'''
+
+        p = self.parent[0].dofs * self.parent[1]
+        c = self.child[0].dofs * self.child[1]        
+        
+        r = p.inv() * c
+
+        twist = np.zeros( 6 )
+        
+        twist[:3] = r.orient.log()
+        twist[3:] = r.center
+        
+        return -self.nullspace.dot(twist)
+        
     
 class Constraint(namedtuple('Constraint', 'body local target stiffness')):
 
@@ -54,13 +82,15 @@ class Vertex(namedtuple('Vertex', 'data in_edges out_edges')):
 
     def __str__(self):
         return self.data.name
+
     
 class Edge(namedtuple('Edge', 'src dst data')):
 
     def __hash__(self): return id(self)
 
     def __str__(self):
-        return '({0}, {1})'.format( str(self.src), str(self.dst) )
+        return '({0} -> {1})'.format( str(self.src), str(self.dst) )
+
     
 class Graph(namedtuple('Graph', 'vertices edges')):
 
@@ -91,14 +121,18 @@ class Graph(namedtuple('Graph', 'vertices edges')):
                     # reorient edge
                     e = Edge(other, v, e.data)
 
-                    v.out_edges.append(e)
-                    other.in_edges.append(e)
+                    print(str(e))
+                    
+                    v.in_edges.append(e)
+                    other.out_edges.append(e)
 
-                    assert len(other.in_edges) == 1, "cyclic graph"
+                    assert len(other.out_edges) == 1, "cyclic graph"
                     res += postfix(other)
 
             return res + [v]
 
+        # print('start:', start.data.name)
+        
         res = postfix(start)
         assert len(res) == len(self.vertices)
 
@@ -107,7 +141,8 @@ class Graph(namedtuple('Graph', 'vertices edges')):
 
 class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
 
-    def draw(self): pass
+    def draw(self):
+        for b in self.bodies:  b.draw()
     
     def update(self, graph):
 
@@ -127,57 +162,121 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
         for j in self.joints:
             v = add_vertex(j)
 
-            e1 = Edge( data[j.parent[0]], v, j)
+            # constraint row blocks
+            e1 = Edge( v, data[j.parent[0]], j)
             e2 = Edge( v, data[j.child[0]], j)
-
+            
             graph.edges.append( e1 )
             graph.edges.append( e2 )
 
             
         for c in self.constraints:
             v = add_vertex(c)
-            e = Edge(data[c.body])
+            e = Edge(data[c.body], v)
 
             graph.edges.append(e)
 
         return data
 
 
-    def fill(self, matrix, graph):
+    def fill_matrix(self, matrix, graph):
         
         for v in graph.vertices:
 
             if type(v.data) is Body:
                 matrix[v] = v.data.inertia_tensor()
 
+                # TODO fill forces/momentum here
+
+                
             if type(v.data) is Joint:
                 assert len(v.in_edges) + len(v.out_edges) == 2, 'is the graph oriented ?'
-                
-                edges = v.in_edges + v.out_edges
 
+                # edges from v
+                edges = v.out_edges + v.in_edges
+
+                # parent/child bodies
                 p = v.data.parent[0]
                 c = v.data.child[0]
+
+                matrix[v] = v.data.compliance_matrix()
                 
-                if edges[0].dst.data != p:
-                    assert edges[1].src.data == p and edges[0].dst.data == c
+                Jp, Jc = v.data.jacobian()
 
-                    # reorder edges so that it matches (p, c)
-                    edges = [edges[1], edges[0]]
+                for e in edges:
+                    
+                    # was the edge reversed during orientation?
+                    transpose = (e.src != v)
 
+                    parent = (e.src.data is p or e.dst.data is p)
 
-                J = v.data.jacobian()
+                    block = Jp if parent else Jc
+                    matrix[e] = block.T if transpose else block
+                    
 
-                matrix[v] = np.zeros( (6, 6) )
-                
-                for i in range(2):
-                    matrix[ edges[i] ] = J[i]
             # TODO constraints
 
-def factor(forward, matrix):
-    pass
+    def fill_vector(self, vector, graph):
 
-def solve(forward, matrix, vector):
-    pass
+        for v in graph.vertices:
+
+            if type(v.data) is Body:
+                # TODO fill forces/momentum
+                vector[v] = np.zeros( 6 )
+                
+            if type(v.data) is Joint:
+                vector[v] = v.data.error()
+
+                
+    def step(self, vector):
+
+        for k, v in vector.items():
+
+            if type(k.data) is Body:
+
+                delta = Rigid3()
+                
+                delta.orient = Quaternion.exp(v[:3])
+                delta.center = v[3:]
+
+                k.data.dofs[:] = k.data.dofs * delta
+                
+        
+def factor(matrix, forward):
+
+    for v in forward:
+
+        mv = matrix[v]
+
+        for e in v.in_edges:
+            me = matrix[e]
+            mv -= me.T.dot( matrix[e.src][0] ).dot(me)
+        
+        mv_inv = np.linalg.inv(mv)
+        matrix[v] = (mv, mv_inv)
+
+        for e in v.out_edges:
+            me = matrix[e]
+            me[:] = mv_inv.dot(me)
+
+
+def solve(vector, matrix, forward):
+    
+    for v in forward:
+
+        xv = vector[v]
+
+        for e in v.in_edges:
+            xv -= matrix[e].T.dot(vector[e.src])
+            
+    for v in reversed( forward ):
+        xv = vector[v]
+
+        xv[:] = matrix[v][1].dot(xv)
+        
+        for e in v.out_edges:
+            xv -= matrix[e].dot( vector[e.dst] )
+
 
 def make_skeleton():
 
@@ -208,39 +307,42 @@ def make_skeleton():
         axis = kwargs.pop('axis', vec(1, 0, 0))
 
         nullspace = np.zeros( (3, 6) )
-        nullspace[:, :3] = np.identity(3)
+        nullspace[:, 3:] = np.identity(3)
         
         kwargs['nullspace'] = nullspace
         return Joint(*args, **kwargs)
     
     
     # bodies
-    head = body(name = 'head')
-    trunk = body(name = 'trunk')
+    size = 1
     
-    larm = body(name = 'larm')
-    rarm = body(name = 'rarm')    
+    head = body(name = 'head', dim = size * vec(1, 1, 1) )
+    trunk = body(name = 'trunk', dim = size * vec(2, 3, 1) )
+    
+    # larm = body(name = 'larm')
+    # rarm = body(name = 'rarm')    
 
-    lforearm = body(name = 'lforearm')
-    rforearm = body(name = 'rforearm')    
+    # lforearm = body(name = 'lforearm')
+    # rforearm = body(name = 'rforearm')    
 
-    bodies = [head, trunk, larm, rarm, lforearm, rforearm]
+    bodies = [head, trunk] #, larm, rarm, lforearm, rforearm]
 
     # joints
-    neck = joint( (trunk, Rigid3()), (head, Rigid3()), name = 'neck')
+    neck = hinge( (trunk, Rigid3(center = vec(0, trunk.dim[1] / 2, 0))),
+                  (head, Rigid3(center = vec(0, -head.dim[1] / 2, 0))),
+                  name = 'neck')
 
-    lshoulder = joint( (trunk, Rigid3()), (larm, Rigid3()), name = 'lshoulder' )
+    # lshoulder = hinge( (trunk, Rigid3()), (larm, Rigid3()), name = 'lshoulder' )
 
-    rshoulder = joint( (trunk, Rigid3()), (rarm, Rigid3()), name = 'rshoulder' )
+    # rshoulder = hinge( (trunk, Rigid3()), (rarm, Rigid3()), name = 'rshoulder' )
 
-    relbow = joint( (rarm, Rigid3()), (rforearm, Rigid3()), name = 'relbow' )
+    # relbow = hinge( (rarm, Rigid3()), (rforearm, Rigid3()), name = 'relbow' )
 
-    lelbow = hinge( (larm, Rigid3()), (lforearm, Rigid3()), name = 'lelbow')
+    # lelbow = hinge( (larm, Rigid3()), (lforearm, Rigid3()), name = 'lelbow')
     
-    joints = [neck, lshoulder, rshoulder, relbow, lelbow]
+    joints = [neck] #, lshoulder, rshoulder, relbow, lelbow]
     
     return Skeleton(bodies, joints, [])
-
 
 
 skeleton = make_skeleton()
@@ -249,14 +351,57 @@ graph = Graph([], [])
 
 
 data = skeleton.update( graph )
-matrix = {}
 
 
-graph.orient( data[skeleton.bodies[2]] )
+forward = graph.orient( data[skeleton.bodies[1]] )
 
-skeleton.fill(matrix, graph)
 
-for k, v in matrix.items():
-    print(str(k), str(v))
+def solver():
 
-# print( str(matrix) )
+    matrix = {}
+    vector = {}
+
+    while True:
+        
+        # assemble
+        skeleton.fill_matrix(matrix, graph)
+        skeleton.fill_vector(vector, graph)
+
+        for k, v in vector.items():
+            print(str(k), v)
+        
+        # solve
+        factor(matrix, forward)
+        solve(vector, matrix, forward)
+        
+        # step
+        skeleton.step(vector)
+        
+        yield
+        
+s = solver()
+next(s)
+
+        
+def draw():
+
+    gl.glColor(1, 1, 1)
+    skeleton.draw()
+
+
+def keypress(key):
+    if key == ' ':
+        next(s)
+        return True
+
+
+def animate():
+    try:
+        next(s)
+    except StopIteration:
+        import sys
+        sys.exit(1)
+        
+    
+viewer.run()
+
