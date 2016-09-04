@@ -385,15 +385,17 @@ def make_skeleton():
 
     ltibia = body(name = 'ltibia', dim = size * vec(0.5, 2, 0.5) )
     rtibia = body(name = 'rtibia', dim = size * vec(0.5, 2, 0.5) )    
-    
+
+    lfoot = body(name = 'lfoot', dim = size * vec(0.5, 1.5, 0.5) )
+    rfoot = body(name = 'rfoot', dim = size * vec(0.5, 1.5, 0.5) )    
+
     
     bodies = [head, trunk,
               larm, rarm,
               lforearm, rforearm,
               lfemur, rfemur,
-              ltibia, rtibia ]
-
-
+              ltibia, rtibia,
+              lfoot, rfoot]
 
     
     # joints
@@ -415,11 +417,13 @@ def make_skeleton():
                            (rarm, Rigid3(center = vec(0, rarm.dim[1] / 2, 0))),
                            name = 'rshoulder' )
 
-    relbow = hinge( (rarm, Rigid3(center = vec(0, -rarm.dim[1] / 2, 0))),
+    relbow = hinge( (rarm, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
+                                  center = vec(0, -rarm.dim[1] / 2, 0))),
                         (rforearm, Rigid3(center = vec(0, rforearm.dim[1] / 2, 0))),
                         name = 'relbow' )
     
-    lelbow = hinge( (larm, Rigid3(center = vec(0, -larm.dim[1] / 2, 0))),
+    lelbow = hinge( (larm, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
+                                  center = vec(0, -larm.dim[1] / 2, 0))),
                         (lforearm, Rigid3(center = vec(0, lforearm.dim[1] / 2, 0))),
                         name = 'lelbow')
 
@@ -437,35 +441,62 @@ def make_skeleton():
                       (rfemur, Rigid3(center = vec(0, rfemur.dim[1] / 2, 0))),
                       name = 'rhip')
     
-    rknee = hinge( (rfemur, Rigid3(center = vec(0, -rfemur.dim[1] / 2, 0))),
+    rknee = hinge( (rfemur, Rigid3(orient = Quaternion.exp( math.pi / 2 * ex),
+                                   center = vec(0, -rfemur.dim[1] / 2, 0))),
                    (rtibia, Rigid3(center = vec(0, rtibia.dim[1] / 2, 0))),
                    name = 'rknee' )
     
-    lknee = hinge( (lfemur, Rigid3(center = vec(0, -lfemur.dim[1] / 2, 0))),
+    lknee = hinge( (lfemur, Rigid3(orient = Quaternion.exp( math.pi / 2 * ex),
+                                   center = vec(0, -lfemur.dim[1] / 2, 0))),
                    (ltibia, Rigid3(center = vec(0, ltibia.dim[1] / 2, 0))),
                    name = 'lknee')
 
+
+    rankle = spherical( (rtibia, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
+                                       center = vec(0, -3 * rtibia.dim[1] / 5, -rtibia.dim[2] / 2))),
+                       (rfoot, Rigid3(center = vec(0, rfoot.dim[1] / 2, 0))),
+                       name = 'rankle' )
+
+    lankle = spherical( (ltibia, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
+                                       center = vec(0, -3 * ltibia.dim[1] / 5, -ltibia.dim[2] / 2))),
+                        (lfoot, Rigid3(center = vec(0, lfoot.dim[1] / 2, 0))),
+                        name = 'lankle' )
+    
 
     
     joints = [neck,
               lshoulder, rshoulder,
               relbow, lelbow,
               lhip, rhip,
-              lknee, rknee]
+              lknee, rknee,
+              lankle, rankle]
 
 
 
     # constraints
+    stiffness = 1e2
+    
     c1 = Constraint(lforearm, vec(0, -lforearm.dim[1] / 2, 0),
-                   vec(-2, 1, 0),
-                   1e3)
+                   vec(-2, 3, 1),
+                    stiffness)
 
 
     c2 = Constraint(rforearm, vec(0, -rforearm.dim[1] / 2, 0),
-                   vec(2, 1, 0),
-                   1e3)
+                   vec(2, 3, 1),
+                    stiffness)
+
+    c3 = Constraint(lfoot, vec(0, -lfoot.dim[1] / 2, 0),
+                   vec(-2, -2, 0),
+                    stiffness)
+
+
+    c4 = Constraint(rfoot, vec(0, -rfoot.dim[1] / 2, 0),
+                   vec(2, -2, 0),
+                    stiffness)
+
+
     
-    constraints = [c1, c2]
+    constraints = [c1, c2, c3, c4]
     
     
     return Skeleton(bodies, joints, constraints)
