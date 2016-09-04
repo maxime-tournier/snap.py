@@ -9,16 +9,13 @@ from snap import viewer, gl
 
 # TODO joint nullspace (subclass)
 
-class Body(namedtuple('Body', 'mass inertia dim name dofs')):
+class Body(object):
 
     def __hash__(self):
         return id(self)
 
     def __str__(self):
         return 'Body({0})'.format(self.name)
-
-    def inertia_tensor(self):
-        return np.identity(6)
 
 
     def draw(self):
@@ -27,8 +24,29 @@ class Body(namedtuple('Body', 'mass inertia dim name dofs')):
             gl.cube()
     
 
-            
-class Joint(namedtuple('Joint', 'parent child name nullspace')):
+    def __init__(self, **kwargs):
+
+        self.dim = kwargs.get('dim', np.ones(3))
+        self.dofs = kwargs.get('dofs', Rigid3())
+        self.name = kwargs.get('name', 'unnamed body')
+        
+        volume = self.dim[0] * self.dim[1] * self.dim[2]
+
+        mass = volume
+
+        dim2 = self.dim * self.dim
+        sum_dim2 = sum(dim2)
+
+        self.mass = mass
+        self.inertia = mass / 12.0 * (sum_dim2 - dim2)
+
+        self.inertia_tensor = np.zeros( (6, 6) )
+        
+        self.inertia_tensor[:3, :3] = np.diag(self.inertia)
+        self.inertia_tensor[3:, 3:] = mass * np.identity(3)
+
+        
+class Joint(namedtuple('Joint', 'parent child name nullspace compliance')):
 
     def __hash__(self):
         return id(self)
@@ -37,10 +55,6 @@ class Joint(namedtuple('Joint', 'parent child name nullspace')):
         return 'Joint({0}, {1})'.format(self.parent[0].name, self.child[0].name)
 
 
-    def compliance_matrix(self):
-        rows, cols = self.nullspace.shape
-        return np.zeros( (rows, rows ) )
-    
     def jacobian(self):
         '''constraint jacobian'''
         
@@ -65,17 +79,29 @@ class Joint(namedtuple('Joint', 'parent child name nullspace')):
         twist = np.zeros( 6 )
         
         twist[:3] = r.orient.log()
-        twist[3:] = r.center
+        twist[3:] = r.orient.inv()(r.center)
         
         return -self.nullspace.dot(twist)
         
     
 class Constraint(namedtuple('Constraint', 'body local target stiffness')):
-
+    '''an ik constraint'''
+    
     def __hash__(self):
         return id(self)
 
+    def jacobian(self):
+        # TODO this is constant, optimize
+        return Rigid3(center = self.local).inv().Ad()[3:, :]
 
+    def error(self):
+        return self.body.dofs.orient.inv()(self.target - self.body.dofs(self.local))
+    
+
+    def compliance(self):
+        return 1.0 / self.stiffness * np.identity(3)
+
+    
 class Vertex(namedtuple('Vertex', 'data in_edges out_edges')):
 
     def __hash__(self): return id(self)
@@ -121,8 +147,6 @@ class Graph(namedtuple('Graph', 'vertices edges')):
                     # reorient edge
                     e = Edge(other, v, e.data)
 
-                    print(str(e))
-                    
                     v.in_edges.append(e)
                     other.out_edges.append(e)
 
@@ -134,7 +158,7 @@ class Graph(namedtuple('Graph', 'vertices edges')):
         # print('start:', start.data.name)
         
         res = postfix(start)
-        assert len(res) == len(self.vertices)
+        assert len(res) == len(self.vertices), 'non-connected graph'
 
         return res
     
@@ -172,7 +196,7 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
             
         for c in self.constraints:
             v = add_vertex(c)
-            e = Edge(data[c.body], v)
+            e = Edge(v, data[c.body], c)
 
             graph.edges.append(e)
 
@@ -184,7 +208,7 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
         for v in graph.vertices:
 
             if type(v.data) is Body:
-                matrix[v] = v.data.inertia_tensor()
+                matrix[v] = v.data.inertia_tensor
 
                 # TODO fill forces/momentum here
 
@@ -199,7 +223,7 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
                 p = v.data.parent[0]
                 c = v.data.child[0]
 
-                matrix[v] = v.data.compliance_matrix()
+                matrix[v] = -v.data.compliance
                 
                 Jp, Jc = v.data.jacobian()
 
@@ -214,7 +238,15 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
                     matrix[e] = block.T if transpose else block
                     
 
-            # TODO constraints
+            if type(v.data) is Constraint:
+
+                matrix[v] = -v.data.compliance()
+
+                assert len(v.out_edges) == 1
+                e = v.out_edges[0]
+                
+                matrix[e] = v.data.jacobian()
+                
 
     def fill_vector(self, vector, graph):
 
@@ -227,8 +259,10 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
             if type(v.data) is Joint:
                 vector[v] = v.data.error()
 
+            if type(v.data) is Constraint:
+                vector[v] = v.data.error()
                 
-    def step(self, vector):
+    def step(self, vector, dt = 1):
 
         for k, v in vector.items():
 
@@ -236,8 +270,8 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
 
                 delta = Rigid3()
                 
-                delta.orient = Quaternion.exp(v[:3])
-                delta.center = v[3:]
+                delta.orient = Quaternion.exp( dt * v[:3])
+                delta.center = dt * v[3:]
 
                 k.data.dofs[:] = k.data.dofs * delta
                 
@@ -301,16 +335,26 @@ def make_skeleton():
         kwargs.setdefault('nullspace', np.identity(6))
         return Joint(*args, **kwargs)
 
-    def hinge(*args, **kwargs):
+    
+    def spherical(*args, **kwargs):
         kwargs.setdefault('name', 'unnamed joint')
 
         axis = kwargs.pop('axis', vec(1, 0, 0))
 
-        nullspace = np.zeros( (3, 6) )
-        nullspace[:, 3:] = np.identity(3)
+        # nullspace = np.zeros( (3, 6) )
+        # nullspace[:, 3:] = np.identity(3)
         
+
+        nullspace = np.identity(6)
         kwargs['nullspace'] = nullspace
+
+        compliance = kwargs.get('compliance', 1) * np.identity(6)
+        compliance[3:, 3:] = 0
+
+        kwargs['compliance'] = compliance
+        
         return Joint(*args, **kwargs)
+    
     
     
     # bodies
@@ -319,30 +363,52 @@ def make_skeleton():
     head = body(name = 'head', dim = size * vec(1, 1, 1) )
     trunk = body(name = 'trunk', dim = size * vec(2, 3, 1) )
     
-    # larm = body(name = 'larm')
-    # rarm = body(name = 'rarm')    
+    larm = body(name = 'larm', dim = size * vec(0.5, 2, 0.5) )
+    rarm = body(name = 'rarm', dim = size * vec(0.5, 2, 0.5) )    
+    
+    lforearm = body(name = 'lforearm', dim = size * vec(0.5, 2, 0.5))
+    rforearm = body(name = 'rforearm', dim = size * vec(0.5, 2, 0.5))    
 
-    # lforearm = body(name = 'lforearm')
-    # rforearm = body(name = 'rforearm')    
-
-    bodies = [head, trunk] #, larm, rarm, lforearm, rforearm]
+    bodies = [head, trunk, larm, rarm, lforearm, rforearm]
 
     # joints
-    neck = hinge( (trunk, Rigid3(center = vec(0, trunk.dim[1] / 2, 0))),
-                  (head, Rigid3(center = vec(0, -head.dim[1] / 2, 0))),
-                  name = 'neck')
+    neck = spherical( (trunk, Rigid3(center = vec(0, 3 * trunk.dim[1] / 5, 0))),
+                      (head, Rigid3(center = vec(0, -head.dim[1] / 2, 0))),
+                      name = 'neck')
 
-    # lshoulder = hinge( (trunk, Rigid3()), (larm, Rigid3()), name = 'lshoulder' )
+    lshoulder = spherical( (trunk, Rigid3(orient = Quaternion.exp( -math.pi / 4 * ez),
+                                          center = vec(-trunk.dim[0] / 2,
+                                                       trunk.dim[1] / 2,
+                                                       0))),
+                           (larm, Rigid3(center = vec(0, larm.dim[1] / 2, 0))),
+                           name = 'lshoulder' )
 
-    # rshoulder = hinge( (trunk, Rigid3()), (rarm, Rigid3()), name = 'rshoulder' )
+    rshoulder = spherical( (trunk, Rigid3(orient = Quaternion.exp( math.pi / 4 * ez),
+                                          center = vec(trunk.dim[0] / 2,
+                                                       trunk.dim[1] / 2,
+                                                       0))),
+                           (rarm, Rigid3(center = vec(0, rarm.dim[1] / 2, 0))),
+                           name = 'rshoulder' )
 
-    # relbow = hinge( (rarm, Rigid3()), (rforearm, Rigid3()), name = 'relbow' )
-
-    # lelbow = hinge( (larm, Rigid3()), (lforearm, Rigid3()), name = 'lelbow')
+    relbow = spherical( (rarm, Rigid3(center = vec(0, -rarm.dim[1] / 2, 0))),
+                        (rforearm, Rigid3(center = vec(0, rforearm.dim[1] / 2, 0))),
+                        name = 'relbow' )
     
-    joints = [neck] #, lshoulder, rshoulder, relbow, lelbow]
+    lelbow = spherical( (larm, Rigid3(center = vec(0, -larm.dim[1] / 2, 0))),
+                        (lforearm, Rigid3(center = vec(0, lforearm.dim[1] / 2, 0))),
+                        name = 'lelbow')
     
-    return Skeleton(bodies, joints, [])
+    joints = [neck, lshoulder, rshoulder, relbow, lelbow]
+
+
+    c = Constraint(lforearm, vec(0, -lforearm.dim[1] / 2, 0),
+                   vec(1, 1, 1),
+                   1e1)
+    
+    constraints = [c]
+    
+    
+    return Skeleton(bodies, joints, constraints)
 
 
 skeleton = make_skeleton()
@@ -367,15 +433,12 @@ def solver():
         skeleton.fill_matrix(matrix, graph)
         skeleton.fill_vector(vector, graph)
 
-        for k, v in vector.items():
-            print(str(k), v)
-        
         # solve
         factor(matrix, forward)
         solve(vector, matrix, forward)
         
         # step
-        skeleton.step(vector)
+        skeleton.step(vector, 1.0)
         
         yield
         
