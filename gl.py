@@ -72,6 +72,7 @@ def cube(**kwargs):
         
         
 def cylinder(**kwargs):
+    '''a z-aligned cone'''    
     
     radius = kwargs.get('radius', 0.5)
 
@@ -87,6 +88,7 @@ cylinder.quad = gluNewQuadric()
 
 
 def cone(**kwargs):
+    '''a z-aligned cone'''
     radius = kwargs.get('radius', 0.5)
 
     height = kwargs.get('height', 1)
@@ -101,6 +103,7 @@ cone.quad = gluNewQuadric()
 
 
 def arrow(**kwargs):
+    '''a z-aligned arrow'''
     radius = kwargs.get('radius', 0.025)
 
     height = kwargs.get('height', 1)
