@@ -56,11 +56,14 @@ class Joint(namedtuple('Joint', 'parent child name nullspace compliance')):
         return 'Joint({0}, {1})'.format(self.parent[0].name, self.child[0].name)
 
 
-    def jacobian(self):
+    def jacobian(self, pdofs = None, cdofs = None):
         '''constraint jacobian'''
+
+        pdofs = pdofs if pdofs is not None else self.parent[0].dofs
+        cdofs = cdofs if cdofs is not None else self.child[0].dofs        
         
-        p = self.parent[0].dofs * self.parent[1]
-        c = self.child[0].dofs * self.child[1]        
+        p = pdofs * self.parent[1]
+        c = cdofs * self.child[1]        
         
         r = p.inv() * c
         
@@ -69,6 +72,7 @@ class Joint(namedtuple('Joint', 'parent child name nullspace compliance')):
 
         return -self.nullspace.dot(r.inv().Ad().dot(dp)), self.nullspace.dot(dc)
 
+    
     def error(self):
         '''constraint violation'''
 
@@ -101,6 +105,7 @@ class Constraint(namedtuple('Constraint', 'body local target stiffness')):
 
     def compliance(self):
         return (1.0 / self.stiffness) * np.identity(3)
+
 
     
 class Vertex(namedtuple('Vertex', 'data in_edges out_edges')):
@@ -204,13 +209,15 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
         return data
 
 
-    def fill_matrix(self, matrix, graph):
+    def fill_matrix(self, matrix, vector, graph, old, dt):
         
         for v in graph.vertices:
 
             if type(v.data) is Body:
-                matrix[v] = v.data.inertia_tensor
-
+                m = matrix.setdefault(v, np.zeros( (6, 6) ) )
+                # matrix[v] = v.data.inertia_tensor
+                m += v.data.inertia_tensor
+                
                 # TODO fill forces/momentum here
 
                 
@@ -237,8 +244,81 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
 
                     block = Jp if parent else Jc
                     matrix[e] = block.T if transpose else block
-                    
 
+                # geometric stiffness
+                if v in vector:
+
+                    # assert p in old
+                    # assert c in old
+
+                    # get constraint force
+                    mu = -vector[v] / dt
+
+                    # recover old jacobian
+                    # Jp, Jc = v.data.jacobian(old[p], old[c])
+
+                    
+                    # old force, body-fixed
+                    fp = Jp.T.dot(mu)
+
+                    # in new frame
+                    # fp = (old[p].inv() * p.dofs).Ad().T.dot(fp)
+                    
+                    op = v.data.parent[1]
+                    xp = op.center
+
+                    # apply on joint center
+                    fp = Rigid3(center = xp).Ad().T.dot(fp)
+
+                    # keep only translation part
+                    fp = fp[3:]
+
+                    # 
+                    
+                    # old force, body-fixed
+                    fc = Jc.T.dot(mu)
+
+                    # in new frame
+                    # fc = (old[c].inv() * c.dofs).Ad().T.dot(fc)
+                    
+                    oc = v.data.child[1]
+                    xc = oc.center
+
+                    # apply on joint center
+                    fc = Rigid3(center = xc).Ad().T.dot(fc)
+
+                    # keep only translation part
+                    fc = fc[3:]
+
+
+                    for e in edges:
+                        parent = (e.src.data is p or e.dst.data is p)
+
+                        if parent:
+                            vp = e.src if e.src.data is p else e.dst
+                            assert vp.data is p
+                            
+                            mp = matrix.setdefault(vp, np.zeros( (6, 6) ) )
+                            
+                            block = ((np.outer(fp, xp) + np.outer(xp, fp) ) / 2
+                                    - fp.dot(xp) * np.identity(3)
+                            )
+                            
+                            mp[:3, :3] -= (dt * dt) * block
+                            
+                        else:
+                            vc = e.src if e.src.data is c else e.dst
+                            assert vc.data is c
+                            
+                            mc = matrix.setdefault(vc, np.zeros( (6, 6) ) )
+                            
+                            block = ((np.outer(fc, xc) + np.outer(xc, fc) ) / 2
+                                     - fc.dot(xc) * np.identity(3)
+                            )
+                            
+                            mc[:3, :3] -= (dt * dt) * block
+
+                            
             if type(v.data) is Constraint:
 
                 matrix[v] = -v.data.compliance()
@@ -247,9 +327,35 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
                 e = v.out_edges[0]
                 
                 matrix[e] = v.data.jacobian()
-                
 
-    def fill_vector(self, vector, graph):
+                # geometric stiffness
+                if v in vector:
+
+                    # get constraint force
+                    mu = -vector[v] / dt
+
+                    # local coords
+                    p = v.data.body
+                    world = old[p].orient(mu)
+                    fp = v.data.body.dofs.orient.inv()(world)
+                    
+                    assert len(v.out_edges) == 1
+                    
+                    for e in v.out_edges:
+                        vp = e.dst
+                        assert vp.data is v.data.body
+
+                        mp = matrix.setdefault(vp, np.zeros( (6, 6) ) )
+
+                        xc = v.data.local
+                        
+                        block = ((np.outer(fp, xp) + np.outer(xp, fp) ) / 2
+                                 - fp.dot(xp) * np.identity(3)
+                        )
+
+                        mp[:3, :3] -= (dt * dt) * block
+                        
+    def fill_vector(self, vector, graph, dt):
 
         for v in graph.vertices:
 
@@ -261,25 +367,31 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
                 vector[v] = v.data.error()
 
             if type(v.data) is Constraint:
-                vector[v] = v.data.error()
+                vector[v] = v.data.error() / dt
+
                 
-    def step(self, vector, dt = 1.0):
+    def step(self, vector, old, dt = 1.0):
 
         for k, v in vector.items():
-
+            
             if type(k.data) is Body:
 
                 delta = Rigid3()
-                
                 delta.orient = Quaternion.exp( dt * v[:3])
                 delta.center = dt * v[3:]
 
-                k.data.dofs = k.data.dofs * delta
+                # delta = Rigid3.exp(dt * v)
                 
-                # k.data.dofs.center = k.data.dofs.center + k.data.dofs.orient(delta.center)
-                # k.data.dofs.orient = k.data.dofs.orient * delta.orient
+                copy = Rigid3()
+                copy[:] = k.data.dofs
+                
+                old[k.data] = copy
 
-                
+                # k.data.dofs = k.data.dofs * delta
+                k.data.dofs.center = k.data.dofs.center + k.data.dofs.orient(delta.center)
+                k.data.dofs.orient = k.data.dofs.orient * delta.orient
+
+            
         
 def factor(matrix, forward):
 
@@ -291,10 +403,9 @@ def factor(matrix, forward):
             me = matrix[e]
             assert e.src != v
 
-            # wtf! mv -= ... is buggy!
-            mv = mv - me.T.dot( matrix[e.src][0] ).dot(me)
+            mv -= me.T.dot( matrix[e.src][0] ).dot(me)
 
-        mv_inv = np.linalg.inv( np.copy(mv) )
+        mv_inv = np.linalg.inv( mv )
         
         matrix[v] = (mv, mv_inv)
 
@@ -450,12 +561,12 @@ def make_skeleton():
                       (rfemur, Rigid3(center = vec(0, rfemur.dim[1] / 2, 0))),
                       name = 'rhip')
     
-    rknee = hinge( (rfemur, Rigid3(orient = Quaternion.exp( math.pi / 2 * ex),
+    rknee = hinge( (rfemur, Rigid3(orient = Quaternion.exp( math.pi / 5 * ex),
                                    center = vec(0, -rfemur.dim[1] / 2, 0))),
                    (rtibia, Rigid3(center = vec(0, rtibia.dim[1] / 2, 0))),
                    name = 'rknee' )
     
-    lknee = hinge( (lfemur, Rigid3(orient = Quaternion.exp( math.pi / 2 * ex),
+    lknee = hinge( (lfemur, Rigid3(orient = Quaternion.exp( math.pi / 5 * ex),
                                    center = vec(0, -lfemur.dim[1] / 2, 0))),
                    (ltibia, Rigid3(center = vec(0, ltibia.dim[1] / 2, 0))),
                    name = 'lknee')
@@ -483,7 +594,7 @@ def make_skeleton():
 
 
     # constraints
-    stiffness = 1e3
+    stiffness = 1
     
     c1 = Constraint(lforearm, vec(0, -lforearm.dim[1] / 2, 0),
                    vec(-2, 3, 1),
@@ -521,28 +632,33 @@ data = skeleton.update( graph )
 forward = graph.orient( data[skeleton.bodies[1]] )
 
 
-def solver():
+def solver(dt = 1):
 
     matrix = {}
     vector = {}
+    old = {}
 
+    
     while True:
-        
+
+        matrix = {}
+
+
         # assemble
-        skeleton.fill_matrix(matrix, graph)
-        skeleton.fill_vector(vector, graph)
+        skeleton.fill_matrix(matrix, vector, graph, old, dt)
+        skeleton.fill_vector(vector, graph, dt)
 
         # solve
         factor(matrix, forward)
         solve(vector, matrix, forward)
-        
+
+
         # step
-        dt = 1.0
-        skeleton.step(vector, dt)
+        skeleton.step(vector, old, dt)
         
         yield
         
-s = solver()
+s = solver(0.1)
 next(s)
 
         

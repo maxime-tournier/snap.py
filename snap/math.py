@@ -95,6 +95,7 @@ class Rigid3(np.ndarray):
 
         return res
 
+
     def matrix(self):
         '''homogeneous matrix for rigid transformation'''
 
