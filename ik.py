@@ -299,10 +299,11 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
                             assert vp.data is p
                             
                             mp = matrix.setdefault(vp, np.zeros( (6, 6) ) )
+
+                            hfp = Quaternion.hat(fp)
+                            hxp = Quaternion.hat(xp)
                             
-                            block = ((np.outer(fp, xp) + np.outer(xp, fp) ) / 2
-                                    - fp.dot(xp) * np.identity(3)
-                            )
+                            block = ( hfp.dot(hxp) + hxp.dot(hfp) ) / 2
                             
                             mp[:3, :3] -= (dt * dt) * block
                             
@@ -311,10 +312,11 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
                             assert vc.data is c
                             
                             mc = matrix.setdefault(vc, np.zeros( (6, 6) ) )
+
+                            hfc = Quaternion.hat(fc)
+                            hxc = Quaternion.hat(xc)
                             
-                            block = ((np.outer(fc, xc) + np.outer(xc, fc) ) / 2
-                                     - fc.dot(xc) * np.identity(3)
-                            )
+                            block = ( hfc.dot(hxc) + hxc.dot(hfc) ) / 2
                             
                             mc[:3, :3] -= (dt * dt) * block
 
