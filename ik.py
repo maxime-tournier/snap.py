@@ -209,7 +209,9 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
         return data
 
 
-    def fill_matrix(self, matrix, vector, graph, old, dt):
+    def fill_matrix(self, matrix, vector, graph, old, dt, **kwargs):
+
+        gs = kwargs.get('gs', False)
         
         for v in graph.vertices:
 
@@ -246,7 +248,7 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
                     matrix[e] = block.T if transpose else block
 
                 # geometric stiffness
-                if v in vector:
+                if gs and v in vector:
 
                     # assert p in old
                     # assert c in old
@@ -331,7 +333,7 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
                 matrix[e] = v.data.jacobian()
 
                 # geometric stiffness
-                if v in vector:
+                if gs and v in vector:
 
                     # get constraint force
                     mu = -vector[v] / dt
@@ -356,6 +358,7 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
                         )
 
                         mp[:3, :3] -= (dt * dt) * block
+
                         
     def fill_vector(self, vector, graph, dt):
 
