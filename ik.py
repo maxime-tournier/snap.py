@@ -7,6 +7,8 @@ from snap.math import *
 
 from snap import viewer, gl, tool
 
+# TODO: Body/Joints/Constraints should fill the graph directly
+
 # TODO joint nullspace (subclass)
 
 class Body(object):
@@ -209,8 +211,9 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints')):
         inertia = np.ones(3)
         dim = np.ones(3)
 
-        rho = 1
-
+        rho = 1.0
+        stiffness = kwargs.get('stiffness', 1.0)
+        
         def body(**kwargs):
             kwargs.setdefault('name', 'unnamed body')
 
@@ -317,66 +320,77 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints')):
         # joints
         neck = spherical( (trunk, Rigid3(center = vec(0, 3 * trunk.dim[1] / 5, 0))),
                           (head, Rigid3(center = vec(0, -head.dim[1] / 2, 0))),
-                          name = 'neck')
+                          name = 'neck',
+                          compliance = 1.0 / stiffness)
 
         lshoulder = spherical( (trunk, Rigid3(orient = Quaternion.exp( -math.pi / 4 * ez),
-                                              center = vec(- 3 * trunk.dim[0] / 5,
-                                                           trunk.dim[1] / 2,
-                                                           0))),
-                               (larm, Rigid3(center = vec(0, larm.dim[1] / 2, 0))),
-                               name = 'lshoulder' )
-
-        rshoulder = spherical( (trunk, Rigid3(orient = Quaternion.exp( math.pi / 4 * ez),
                                               center = vec(3 * trunk.dim[0] / 5,
                                                            trunk.dim[1] / 2,
                                                            0))),
-                               (rarm, Rigid3(center = vec(0, rarm.dim[1] / 2, 0))),
-                               name = 'rshoulder' )
+                               (larm, Rigid3(center = vec(0, larm.dim[1] / 2, 0))),
+                               name = 'lshoulder',
+                          compliance = 1.0 / stiffness )
 
-        relbow = hinge( (rarm, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
+        rshoulder = spherical( (trunk, Rigid3(orient = Quaternion.exp( math.pi / 4 * ez),
+                                              center = vec(-3 * trunk.dim[0] / 5,
+                                                           trunk.dim[1] / 2,
+                                                           0))),
+                               (rarm, Rigid3(center = vec(0, rarm.dim[1] / 2, 0))),
+                               name = 'rshoulder',
+                          compliance = 1.0 / stiffness )
+
+        relbow = hinge( (rarm, Rigid3(orient = Quaternion.exp( math.pi / 2 * ex),
                                       center = vec(0, -rarm.dim[1] / 2, 0))),
                             (rforearm, Rigid3(center = vec(0, rforearm.dim[1] / 2, 0))),
-                            name = 'relbow' )
+                            name = 'relbow',
+                          compliance = 1.0 / stiffness )
 
-        lelbow = hinge( (larm, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
+        lelbow = hinge( (larm, Rigid3(orient = Quaternion.exp( math.pi / 2 * ex),
                                       center = vec(0, -larm.dim[1] / 2, 0))),
                             (lforearm, Rigid3(center = vec(0, lforearm.dim[1] / 2, 0))),
-                            name = 'lelbow')
+                            name = 'lelbow',
+                          compliance = 1.0 / stiffness)
 
 
-        lhip = spherical( (trunk, Rigid3( center = vec(-trunk.dim[0] / 2,
+        lhip = spherical( (trunk, Rigid3( center = vec(trunk.dim[0] / 2,
                                                       -trunk.dim[1] / 2,
                                                       0))),
                           (lfemur, Rigid3(center = vec(0, lfemur.dim[1] / 2, 0))),
-                          name = 'lhip')
+                          name = 'lhip',
+                          compliance = 1.0 / stiffness)
 
 
-        rhip = spherical( (trunk, Rigid3( center = vec(trunk.dim[0] / 2,
+        rhip = spherical( (trunk, Rigid3( center = vec(-trunk.dim[0] / 2,
                                                       -trunk.dim[1] / 2,
                                                       0))),
                           (rfemur, Rigid3(center = vec(0, rfemur.dim[1] / 2, 0))),
-                          name = 'rhip')
+                          name = 'rhip',
+                          compliance = 1.0 / stiffness)
 
-        rknee = hinge( (rfemur, Rigid3(orient = Quaternion.exp( math.pi / 5 * ex),
+        rknee = hinge( (rfemur, Rigid3(orient = Quaternion.exp( -math.pi / 5 * ex),
                                        center = vec(0, -rfemur.dim[1] / 2, 0))),
                        (rtibia, Rigid3(center = vec(0, rtibia.dim[1] / 2, 0))),
-                       name = 'rknee' )
+                       name = 'rknee',
+                          compliance = 1.0 / stiffness )
 
-        lknee = hinge( (lfemur, Rigid3(orient = Quaternion.exp( math.pi / 5 * ex),
+        lknee = hinge( (lfemur, Rigid3(orient = Quaternion.exp(-math.pi / 5 * ex),
                                        center = vec(0, -lfemur.dim[1] / 2, 0))),
                        (ltibia, Rigid3(center = vec(0, ltibia.dim[1] / 2, 0))),
-                       name = 'lknee')
+                       name = 'lknee',
+                          compliance = 1.0 / stiffness)
 
 
-        rankle = spherical( (rtibia, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
+        rankle = spherical( (rtibia, Rigid3(orient = Quaternion.exp( math.pi / 2 * ex),
                                            center = vec(0, -3 * rtibia.dim[1] / 5, 0))),
                            (rfoot, Rigid3(center = vec(0, 2 * rfoot.dim[1] / 5, 0))),
-                           name = 'rankle' )
+                           name = 'rankle',
+                          compliance = 1.0 / stiffness )
 
-        lankle = spherical( (ltibia, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
+        lankle = spherical( (ltibia, Rigid3(orient = Quaternion.exp( math.pi / 2 * ex),
                                            center = vec(0, -3 * ltibia.dim[1] / 5, 0))),
                             (lfoot, Rigid3(center = vec(0, 2 * lfoot.dim[1] / 5, 0))),
-                            name = 'lankle' )
+                            name = 'lankle',
+                          compliance = 1.0 / stiffness )
 
 
 
