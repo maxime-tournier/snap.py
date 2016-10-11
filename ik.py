@@ -650,18 +650,8 @@ def make_skeleton(**kwargs):
     return Skeleton(bodies, joints, constraints)
 
 
-skeleton = make_skeleton()
 
-graph = Graph([], [])
-
-
-data = skeleton.update( graph )
-
-
-forward = graph.orient( data[skeleton.bodies[1]] )
-
-
-def solver(dt = 1):
+def solver(skeleton, graph, forward, dt = 1):
 
     matrix = {}
     vector = {}
@@ -686,9 +676,8 @@ def solver(dt = 1):
         skeleton.step(vector, old, dt)
         
         yield
-        
-s = solver(0.5)
-next(s)
+
+
 
         
 def draw():
@@ -730,8 +719,6 @@ def animate():
         sys.exit(1)
 
 
-on_drag = None
-
 @tool.coroutine
 def dragger(c):
 
@@ -754,6 +741,19 @@ def drag(p):
     if on_drag: on_drag.send(p)
 
     
-if __name__ == '__main__':        
-    viewer.run()
+if __name__ == '__main__':
+    on_drag = None
 
+
+    skeleton = make_skeleton()
+
+    graph = Graph([], [])
+
+
+    data = skeleton.update( graph )
+    forward = graph.orient( data[skeleton.bodies[1]] )
+
+
+    s = solver(skeleton, graph, forward, 0.5)
+    
+    viewer.run()
