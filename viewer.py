@@ -579,10 +579,17 @@ def app():
     import sys
     res = QtGui.QApplication(sys.argv)
 
+    def quit():
+        sys.exit(0)
+    
+    res.connect(res, QtCore.SIGNAL("aboutToQuit()"), quit)
+    
     try:
         yield res
     finally:
-        sys.exit(res.exec_())
+        sys.exit( res.exec_() )
+
+        
     
 def run():
 
