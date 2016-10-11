@@ -436,19 +436,28 @@ def solve(vector, matrix, forward):
             xv -= matrix[e].dot( vector[e.dst] )
 
 
-def make_skeleton():
+def make_skeleton(**kwargs):
 
     mass = 1
     inertia = np.ones(3)
     dim = np.ones(3)
 
+    rho = 1
+    
     def body(**kwargs):
         kwargs.setdefault('name', 'unnamed body')
 
-        kwargs.setdefault('mass', mass)
-        kwargs.setdefault('inertia', inertia)
-        kwargs.setdefault('dim', dim)
+        d = kwargs.setdefault('dim', dim)
+        volume = d[0] * d[1] * d[2]
+
+        m = rho * volume
+
+        d2 = d * d
+        inertia = m * (sum(d2) - d2) / 12.0
         
+        kwargs.setdefault('mass', m )
+        kwargs.setdefault('inertia', inertia)
+
         kwargs.setdefault('dofs', Rigid3() )                        
         
         return Body(**kwargs)
@@ -495,25 +504,40 @@ def make_skeleton():
     
     # bodies
     size = 1
+
+    head_size = kwargs.get('head_size', 1.0)
+    trunk_size = kwargs.get('trunk_size', 3.0)
+    arm_size = kwargs.get('arm_size', 2.0)
+    forearm_size = kwargs.get('forearm_size', 2.0)        
+    femur_size = kwargs.get('femur_size', 3.0)
+    tibia_size = kwargs.get('tibia_size', 2.0)
+    foot_size = kwargs.get('foot_size', 1.5)            
     
-    head = body(name = 'head', dim = size * vec(1, 1, 1) )
-    trunk = body(name = 'trunk', dim = size * vec(2, 3, 1) )
+    head = body(name = 'head', dim = vec(head_size, head_size, head_size) )
+    trunk = body(name = 'trunk', dim = vec(2.0 / 3.0 * trunk_size,
+                                           trunk_size,
+                                           trunk_size / 3.0) )
     
-    larm = body(name = 'larm', dim = size * vec(0.5, 2, 0.5) )
-    rarm = body(name = 'rarm', dim = size * vec(0.5, 2, 0.5) )    
+    arm_dim = vec(arm_size / 4.0, arm_size, arm_size / 4.0)
+    larm = body(name = 'larm', dim = arm_dim)
+    rarm = body(name = 'rarm', dim = arm_dim )    
+
+    forearm_dim = vec(forearm_size / 4.0, forearm_size, forearm_size / 4.0)
+    lforearm = body(name = 'lforearm', dim = forearm_dim)
+    rforearm = body(name = 'rforearm', dim = forearm_dim)
+
+    femur_dim = vec(femur_size / 6.0, femur_size, femur_size / 6.0)
+    lfemur = body(name = 'lfemur', dim = femur_dim)
+    rfemur = body(name = 'rfemur', dim = femur_dim)
+
+    tibia_dim = vec(tibia_size / 4.0, tibia_size, tibia_size / 4.0)
+    ltibia = body(name = 'ltibia', dim = tibia_dim)
+    rtibia = body(name = 'rtibia', dim = tibia_dim)
+
+    foot_dim = vec(foot_size / 3.0, foot_size, foot_size / 3.0)
+    lfoot = body(name = 'lfoot', dim = foot_dim)
+    rfoot = body(name = 'rfoot', dim = foot_dim)
     
-    lforearm = body(name = 'lforearm', dim = size * vec(0.5, 2, 0.5))
-    rforearm = body(name = 'rforearm', dim = size * vec(0.5, 2, 0.5))    
-
-    lfemur = body(name = 'lfemur', dim = size * vec(0.5, 3, 0.5) )
-    rfemur = body(name = 'rfemur', dim = size * vec(0.5, 3, 0.5) )    
-
-    ltibia = body(name = 'ltibia', dim = size * vec(0.5, 2, 0.5) )
-    rtibia = body(name = 'rtibia', dim = size * vec(0.5, 2, 0.5) )    
-
-    lfoot = body(name = 'lfoot', dim = size * vec(0.5, 1.5, 0.5) )
-    rfoot = body(name = 'rfoot', dim = size * vec(0.5, 1.5, 0.5) )    
-
     
     bodies = [head, trunk,
               larm, rarm,
@@ -599,24 +623,24 @@ def make_skeleton():
 
 
     # constraints
-    stiffness = 1
+    stiffness = 1e2
     
     c1 = Constraint(lforearm, vec(0, -lforearm.dim[1] / 2, 0),
-                   vec(-2, 3, 1),
+                    vec(-2, 3, 1),
                     stiffness)
 
 
     c2 = Constraint(rforearm, vec(0, -rforearm.dim[1] / 2, 0),
-                   vec(2, 3, 1),
+                    vec(2, 3, 1),
                     stiffness)
 
     c3 = Constraint(lfoot, vec(0, -lfoot.dim[1] / 2, 0),
-                   vec(-2, -2, 0),
+                    vec(-2, -2, 0),
                     stiffness)
 
 
     c4 = Constraint(rfoot, vec(0, -rfoot.dim[1] / 2, 0),
-                   vec(2, -2, 0),
+                    vec(2, -2, 0),
                     stiffness)
 
     
@@ -643,14 +667,14 @@ def solver(dt = 1):
     vector = {}
     old = {}
 
+    gs = False
     
     while True:
 
         matrix = {}
 
-
         # assemble
-        skeleton.fill_matrix(matrix, vector, graph, old, dt)
+        skeleton.fill_matrix(matrix, vector, graph, old, dt, gs = gs)
         skeleton.fill_vector(vector, graph, dt)
 
         # solve
@@ -663,7 +687,7 @@ def solver(dt = 1):
         
         yield
         
-s = solver(0.1)
+s = solver(0.5)
 next(s)
 
         
@@ -690,6 +714,7 @@ def draw():
 
                 gl.glVertex(start)
                 gl.glVertex(end)
+                
     
 def keypress(key):
     if key == ' ':
@@ -729,6 +754,6 @@ def drag(p):
     if on_drag: on_drag.send(p)
 
     
-        
-viewer.run()
+if __name__ == '__main__':        
+    viewer.run()
 
