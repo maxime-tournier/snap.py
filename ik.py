@@ -124,9 +124,16 @@ class Edge(namedtuple('Edge', 'src dst data')):
         return '({0} -> {1})'.format( str(self.src), str(self.dst) )
 
     
-class Graph(namedtuple('Graph', 'vertices edges')):
+class Graph(namedtuple('Graph', 'vertices edges helper')):
 
+    def add_vertex(self, x):
+        v = Vertex(x, in_edges = [], out_edges = [])
+        self.vertices.append(v)
+        self.helper[x] = v
+        
+        return v
 
+    
     def orient(self, start):
         marked = set()
 
@@ -169,45 +176,256 @@ class Graph(namedtuple('Graph', 'vertices edges')):
         return res
     
 
-class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
+class Skeleton(namedtuple('Skeleton', 'bodies joints')):
 
+    
     def draw(self):
         for b in self.bodies:  b.draw()
-    
-    def update(self, graph):
 
-        data = { }
-
-        def add_vertex(x):
-            v = Vertex(x, in_edges = [], out_edges = [])
-            graph.vertices.append(v)
-            data[x] = v
-            return v
         
+    def fill_graph(self, graph):
+
         
         for b in self.bodies:
-            add_vertex(b)
+            graph.add_vertex(b)
 
             
         for j in self.joints:
-            v = add_vertex(j)
+            v = graph.add_vertex(j)
 
             # constraint row blocks
-            e1 = Edge( v, data[j.parent[0]], j)
-            e2 = Edge( v, data[j.child[0]], j)
+            e1 = Edge( v, graph.helper[j.parent[0]], j)
+            e2 = Edge( v, graph.helper[j.child[0]], j)
             
             graph.edges.append( e1 )
             graph.edges.append( e2 )
 
             
-        for c in self.constraints:
-            v = add_vertex(c)
-            e = Edge(v, data[c.body], c)
 
-            graph.edges.append(e)
+    @staticmethod
+    def human(**kwargs):
 
-        return data
+        mass = 1
+        inertia = np.ones(3)
+        dim = np.ones(3)
 
+        rho = 1
+
+        def body(**kwargs):
+            kwargs.setdefault('name', 'unnamed body')
+
+            d = kwargs.setdefault('dim', dim)
+            volume = d[0] * d[1] * d[2]
+
+            m = rho * volume
+
+            d2 = d * d
+            inertia = m * (sum(d2) - d2) / 12.0
+
+            kwargs.setdefault('mass', m )
+            kwargs.setdefault('inertia', inertia)
+
+            kwargs.setdefault('dofs', Rigid3() )                        
+
+            return Body(**kwargs)
+
+
+        def joint(*args, **kwargs):
+            kwargs.setdefault('name', 'unnamed joint')
+            kwargs.setdefault('nullspace', np.identity(6))
+            return Joint(*args, **kwargs)
+
+
+        def spherical(*args, **kwargs):
+            kwargs.setdefault('name', 'unnamed joint')
+
+            nullspace = np.identity(6)
+            kwargs['nullspace'] = nullspace
+
+            compliance = kwargs.get('compliance', 1) * np.identity(6)
+            compliance[3:, 3:] = 0 * np.identity(3)
+
+            kwargs['compliance'] = compliance
+
+            return Joint(*args, **kwargs)
+
+
+        def hinge(*args, **kwargs):
+            kwargs.setdefault('name', 'unnamed joint')
+
+            axis = kwargs.pop('axis', vec(1, 0, 0))
+
+            nullspace = np.identity(6)
+            kwargs['nullspace'] = nullspace
+
+            compliance = np.zeros( (6, 6) )
+
+            compliance[:3, :3] = kwargs.get('compliance', 1) * np.outer(axis, axis)
+            compliance[3:, 3:] = 0 * np.identity(3)
+
+            kwargs['compliance'] = compliance
+
+            return Joint(*args, **kwargs)
+
+
+
+        # bodies
+        size = 1
+
+        head_size = kwargs.get('head_size', 1.0)
+        trunk_size = kwargs.get('trunk_size', 3.0)
+        arm_size = kwargs.get('arm_size', 2.0)
+        forearm_size = kwargs.get('forearm_size', 2.0)        
+        femur_size = kwargs.get('femur_size', 3.0)
+        tibia_size = kwargs.get('tibia_size', 2.0)
+        foot_size = kwargs.get('foot_size', 1.5)            
+
+        head = body(name = 'head', dim = vec(head_size, head_size, head_size) )
+        trunk = body(name = 'trunk', dim = vec(2.0 / 3.0 * trunk_size,
+                                               trunk_size,
+                                               trunk_size / 3.0) )
+
+        arm_dim = vec(arm_size / 4.0, arm_size, arm_size / 4.0)
+        larm = body(name = 'larm', dim = arm_dim)
+        rarm = body(name = 'rarm', dim = arm_dim )    
+
+        forearm_dim = vec(forearm_size / 4.0, forearm_size, forearm_size / 4.0)
+        lforearm = body(name = 'lforearm', dim = forearm_dim)
+        rforearm = body(name = 'rforearm', dim = forearm_dim)
+
+        femur_dim = vec(femur_size / 6.0, femur_size, femur_size / 6.0)
+        lfemur = body(name = 'lfemur', dim = femur_dim)
+        rfemur = body(name = 'rfemur', dim = femur_dim)
+
+        tibia_dim = vec(tibia_size / 4.0, tibia_size, tibia_size / 4.0)
+        ltibia = body(name = 'ltibia', dim = tibia_dim)
+        rtibia = body(name = 'rtibia', dim = tibia_dim)
+
+        foot_dim = vec(foot_size / 3.0, foot_size, foot_size / 3.0)
+        lfoot = body(name = 'lfoot', dim = foot_dim)
+        rfoot = body(name = 'rfoot', dim = foot_dim)
+
+
+        bodies = [head, trunk,
+                  larm, rarm,
+                  lforearm, rforearm,
+                  lfemur, rfemur,
+                  ltibia, rtibia,
+                  lfoot, rfoot]
+
+
+        # joints
+        neck = spherical( (trunk, Rigid3(center = vec(0, 3 * trunk.dim[1] / 5, 0))),
+                          (head, Rigid3(center = vec(0, -head.dim[1] / 2, 0))),
+                          name = 'neck')
+
+        lshoulder = spherical( (trunk, Rigid3(orient = Quaternion.exp( -math.pi / 4 * ez),
+                                              center = vec(- 3 * trunk.dim[0] / 5,
+                                                           trunk.dim[1] / 2,
+                                                           0))),
+                               (larm, Rigid3(center = vec(0, larm.dim[1] / 2, 0))),
+                               name = 'lshoulder' )
+
+        rshoulder = spherical( (trunk, Rigid3(orient = Quaternion.exp( math.pi / 4 * ez),
+                                              center = vec(3 * trunk.dim[0] / 5,
+                                                           trunk.dim[1] / 2,
+                                                           0))),
+                               (rarm, Rigid3(center = vec(0, rarm.dim[1] / 2, 0))),
+                               name = 'rshoulder' )
+
+        relbow = hinge( (rarm, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
+                                      center = vec(0, -rarm.dim[1] / 2, 0))),
+                            (rforearm, Rigid3(center = vec(0, rforearm.dim[1] / 2, 0))),
+                            name = 'relbow' )
+
+        lelbow = hinge( (larm, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
+                                      center = vec(0, -larm.dim[1] / 2, 0))),
+                            (lforearm, Rigid3(center = vec(0, lforearm.dim[1] / 2, 0))),
+                            name = 'lelbow')
+
+
+        lhip = spherical( (trunk, Rigid3( center = vec(-trunk.dim[0] / 2,
+                                                      -trunk.dim[1] / 2,
+                                                      0))),
+                          (lfemur, Rigid3(center = vec(0, lfemur.dim[1] / 2, 0))),
+                          name = 'lhip')
+
+
+        rhip = spherical( (trunk, Rigid3( center = vec(trunk.dim[0] / 2,
+                                                      -trunk.dim[1] / 2,
+                                                      0))),
+                          (rfemur, Rigid3(center = vec(0, rfemur.dim[1] / 2, 0))),
+                          name = 'rhip')
+
+        rknee = hinge( (rfemur, Rigid3(orient = Quaternion.exp( math.pi / 5 * ex),
+                                       center = vec(0, -rfemur.dim[1] / 2, 0))),
+                       (rtibia, Rigid3(center = vec(0, rtibia.dim[1] / 2, 0))),
+                       name = 'rknee' )
+
+        lknee = hinge( (lfemur, Rigid3(orient = Quaternion.exp( math.pi / 5 * ex),
+                                       center = vec(0, -lfemur.dim[1] / 2, 0))),
+                       (ltibia, Rigid3(center = vec(0, ltibia.dim[1] / 2, 0))),
+                       name = 'lknee')
+
+
+        rankle = spherical( (rtibia, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
+                                           center = vec(0, -3 * rtibia.dim[1] / 5, 0))),
+                           (rfoot, Rigid3(center = vec(0, 2 * rfoot.dim[1] / 5, 0))),
+                           name = 'rankle' )
+
+        lankle = spherical( (ltibia, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
+                                           center = vec(0, -3 * ltibia.dim[1] / 5, 0))),
+                            (lfoot, Rigid3(center = vec(0, 2 * lfoot.dim[1] / 5, 0))),
+                            name = 'lankle' )
+
+
+
+        joints = [neck,
+                  lshoulder, rshoulder,
+                  relbow, lelbow,
+                  lhip, rhip,
+                  lknee, rknee,
+                  lankle, rankle]
+
+
+        constraints = []
+
+        skeleton = Skeleton(bodies, joints)
+
+        # some handy shortcuts
+        skeleton.head = head
+        skeleton.trunk = trunk
+
+        skeleton.larm = larm
+        skeleton.lforearm = lforearm
+        skeleton.lfemur = lfemur
+        skeleton.ltibia = ltibia
+        skeleton.lfoot = lfoot
+
+        skeleton.rarm = rarm
+        skeleton.rforearm = rforearm
+        skeleton.rfemur = rfemur
+        skeleton.rtibia = rtibia
+        skeleton.rfoot = rfoot
+
+
+        skeleton.neck = neck
+
+        skeleton.lshoulder = lshoulder
+        skeleton.lelbow = lelbow
+        skeleton.lhip = lhip
+        skeleton.lknee = lknee
+        skeleton.lankle = lankle
+
+        skeleton.rshoulder = rshoulder
+        skeleton.relbow = relbow
+        skeleton.rhip = rhip
+        skeleton.rknee = rknee
+        skeleton.rankle = rankle
+        
+        return skeleton
+
+    
 
     def fill_matrix(self, matrix, vector, graph, old, dt, **kwargs):
 
@@ -396,7 +614,21 @@ class Skeleton(namedtuple('Skeleton', 'bodies joints constraints')):
                 k.data.dofs.center = k.data.dofs.center + k.data.dofs.orient(delta.center)
                 k.data.dofs.orient = k.data.dofs.orient * delta.orient
 
-            
+
+
+
+class ConstraintList(list):
+
+    
+    def fill_graph(self, graph):
+
+        for c in self:
+            v = graph.add_vertex(c)
+            e = Edge(v, graph.helper[c.body], c)
+
+            graph.edges.append(e)
+
+
         
 def factor(matrix, forward):
 
@@ -436,218 +668,6 @@ def solve(vector, matrix, forward):
             xv -= matrix[e].dot( vector[e.dst] )
 
 
-def make_skeleton(**kwargs):
-
-    mass = 1
-    inertia = np.ones(3)
-    dim = np.ones(3)
-
-    rho = 1
-    
-    def body(**kwargs):
-        kwargs.setdefault('name', 'unnamed body')
-
-        d = kwargs.setdefault('dim', dim)
-        volume = d[0] * d[1] * d[2]
-
-        m = rho * volume
-
-        d2 = d * d
-        inertia = m * (sum(d2) - d2) / 12.0
-        
-        kwargs.setdefault('mass', m )
-        kwargs.setdefault('inertia', inertia)
-
-        kwargs.setdefault('dofs', Rigid3() )                        
-        
-        return Body(**kwargs)
-
-
-    def joint(*args, **kwargs):
-        kwargs.setdefault('name', 'unnamed joint')
-        kwargs.setdefault('nullspace', np.identity(6))
-        return Joint(*args, **kwargs)
-
-    
-    def spherical(*args, **kwargs):
-        kwargs.setdefault('name', 'unnamed joint')
-
-        nullspace = np.identity(6)
-        kwargs['nullspace'] = nullspace
-
-        compliance = kwargs.get('compliance', 1) * np.identity(6)
-        compliance[3:, 3:] = 0 * np.identity(3)
-        
-        kwargs['compliance'] = compliance
-        
-        return Joint(*args, **kwargs)
-
-
-    def hinge(*args, **kwargs):
-        kwargs.setdefault('name', 'unnamed joint')
-
-        axis = kwargs.pop('axis', vec(1, 0, 0))
-
-        nullspace = np.identity(6)
-        kwargs['nullspace'] = nullspace
-
-        compliance = np.zeros( (6, 6) )
-        
-        compliance[:3, :3] = kwargs.get('compliance', 1) * np.outer(axis, axis)
-        compliance[3:, 3:] = 0 * np.identity(3)
-
-        kwargs['compliance'] = compliance
-        
-        return Joint(*args, **kwargs)
-    
-    
-    
-    # bodies
-    size = 1
-
-    head_size = kwargs.get('head_size', 1.0)
-    trunk_size = kwargs.get('trunk_size', 3.0)
-    arm_size = kwargs.get('arm_size', 2.0)
-    forearm_size = kwargs.get('forearm_size', 2.0)        
-    femur_size = kwargs.get('femur_size', 3.0)
-    tibia_size = kwargs.get('tibia_size', 2.0)
-    foot_size = kwargs.get('foot_size', 1.5)            
-    
-    head = body(name = 'head', dim = vec(head_size, head_size, head_size) )
-    trunk = body(name = 'trunk', dim = vec(2.0 / 3.0 * trunk_size,
-                                           trunk_size,
-                                           trunk_size / 3.0) )
-    
-    arm_dim = vec(arm_size / 4.0, arm_size, arm_size / 4.0)
-    larm = body(name = 'larm', dim = arm_dim)
-    rarm = body(name = 'rarm', dim = arm_dim )    
-
-    forearm_dim = vec(forearm_size / 4.0, forearm_size, forearm_size / 4.0)
-    lforearm = body(name = 'lforearm', dim = forearm_dim)
-    rforearm = body(name = 'rforearm', dim = forearm_dim)
-
-    femur_dim = vec(femur_size / 6.0, femur_size, femur_size / 6.0)
-    lfemur = body(name = 'lfemur', dim = femur_dim)
-    rfemur = body(name = 'rfemur', dim = femur_dim)
-
-    tibia_dim = vec(tibia_size / 4.0, tibia_size, tibia_size / 4.0)
-    ltibia = body(name = 'ltibia', dim = tibia_dim)
-    rtibia = body(name = 'rtibia', dim = tibia_dim)
-
-    foot_dim = vec(foot_size / 3.0, foot_size, foot_size / 3.0)
-    lfoot = body(name = 'lfoot', dim = foot_dim)
-    rfoot = body(name = 'rfoot', dim = foot_dim)
-    
-    
-    bodies = [head, trunk,
-              larm, rarm,
-              lforearm, rforearm,
-              lfemur, rfemur,
-              ltibia, rtibia,
-              lfoot, rfoot]
-
-    
-    # joints
-    neck = spherical( (trunk, Rigid3(center = vec(0, 3 * trunk.dim[1] / 5, 0))),
-                      (head, Rigid3(center = vec(0, -head.dim[1] / 2, 0))),
-                      name = 'neck')
-
-    lshoulder = spherical( (trunk, Rigid3(orient = Quaternion.exp( -math.pi / 4 * ez),
-                                          center = vec(- 3 * trunk.dim[0] / 5,
-                                                       trunk.dim[1] / 2,
-                                                       0))),
-                           (larm, Rigid3(center = vec(0, larm.dim[1] / 2, 0))),
-                           name = 'lshoulder' )
-
-    rshoulder = spherical( (trunk, Rigid3(orient = Quaternion.exp( math.pi / 4 * ez),
-                                          center = vec(3 * trunk.dim[0] / 5,
-                                                       trunk.dim[1] / 2,
-                                                       0))),
-                           (rarm, Rigid3(center = vec(0, rarm.dim[1] / 2, 0))),
-                           name = 'rshoulder' )
-
-    relbow = hinge( (rarm, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
-                                  center = vec(0, -rarm.dim[1] / 2, 0))),
-                        (rforearm, Rigid3(center = vec(0, rforearm.dim[1] / 2, 0))),
-                        name = 'relbow' )
-    
-    lelbow = hinge( (larm, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
-                                  center = vec(0, -larm.dim[1] / 2, 0))),
-                        (lforearm, Rigid3(center = vec(0, lforearm.dim[1] / 2, 0))),
-                        name = 'lelbow')
-
-
-    lhip = spherical( (trunk, Rigid3( center = vec(-trunk.dim[0] / 2,
-                                                  -trunk.dim[1] / 2,
-                                                  0))),
-                      (lfemur, Rigid3(center = vec(0, lfemur.dim[1] / 2, 0))),
-                      name = 'lhip')
-
-
-    rhip = spherical( (trunk, Rigid3( center = vec(trunk.dim[0] / 2,
-                                                  -trunk.dim[1] / 2,
-                                                  0))),
-                      (rfemur, Rigid3(center = vec(0, rfemur.dim[1] / 2, 0))),
-                      name = 'rhip')
-    
-    rknee = hinge( (rfemur, Rigid3(orient = Quaternion.exp( math.pi / 5 * ex),
-                                   center = vec(0, -rfemur.dim[1] / 2, 0))),
-                   (rtibia, Rigid3(center = vec(0, rtibia.dim[1] / 2, 0))),
-                   name = 'rknee' )
-    
-    lknee = hinge( (lfemur, Rigid3(orient = Quaternion.exp( math.pi / 5 * ex),
-                                   center = vec(0, -lfemur.dim[1] / 2, 0))),
-                   (ltibia, Rigid3(center = vec(0, ltibia.dim[1] / 2, 0))),
-                   name = 'lknee')
-
-
-    rankle = spherical( (rtibia, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
-                                       center = vec(0, -3 * rtibia.dim[1] / 5, 0))),
-                       (rfoot, Rigid3(center = vec(0, 2 * rfoot.dim[1] / 5, 0))),
-                       name = 'rankle' )
-
-    lankle = spherical( (ltibia, Rigid3(orient = Quaternion.exp( -math.pi / 2 * ex),
-                                       center = vec(0, -3 * ltibia.dim[1] / 5, 0))),
-                        (lfoot, Rigid3(center = vec(0, 2 * lfoot.dim[1] / 5, 0))),
-                        name = 'lankle' )
-    
-
-    
-    joints = [neck,
-              lshoulder, rshoulder,
-              relbow, lelbow,
-              lhip, rhip,
-              lknee, rknee,
-              lankle, rankle]
-
-
-
-    # constraints
-    stiffness = 1e2
-    
-    c1 = Constraint(lforearm, vec(0, -lforearm.dim[1] / 2, 0),
-                    vec(-2, 3, 1),
-                    stiffness)
-
-
-    c2 = Constraint(rforearm, vec(0, -rforearm.dim[1] / 2, 0),
-                    vec(2, 3, 1),
-                    stiffness)
-
-    c3 = Constraint(lfoot, vec(0, -lfoot.dim[1] / 2, 0),
-                    vec(-2, -2, 0),
-                    stiffness)
-
-
-    c4 = Constraint(rfoot, vec(0, -rfoot.dim[1] / 2, 0),
-                    vec(2, -2, 0),
-                    stiffness)
-
-    
-    constraints = [c1, c2, c3, c4]
-    
-    
-    return Skeleton(bodies, joints, constraints)
 
 
 
@@ -689,7 +709,7 @@ def draw():
     gl.glPointSize(6)
     
     
-    for c in skeleton.constraints:
+    for c in constraints:
         with gl.disable(gl.GL_LIGHTING):
 
             gl.glColor(1, 0, 0)            
@@ -729,7 +749,7 @@ def dragger(c):
         
 def select(p):
     
-    for c in skeleton.constraints:
+    for c in constraints:
 
         # print(c.body.name, norm(p - c.target))
         if norm(p - c.target) < 0.2:
@@ -745,13 +765,39 @@ if __name__ == '__main__':
     on_drag = None
 
 
-    skeleton = make_skeleton()
+    skeleton = Skeleton.human()
 
-    graph = Graph([], [])
+    
+    # constraints
+    stiffness = 1e2
 
 
-    data = skeleton.update( graph )
-    forward = graph.orient( data[skeleton.bodies[1]] )
+    constraints = ConstraintList()
+    
+    constraints += [
+        Constraint(skeleton.lforearm, vec(0, -skeleton.lforearm.dim[1] / 2, 0),
+                   vec(-2, 3, 1),
+                   stiffness),
+        Constraint(skeleton.rforearm, vec(0, -skeleton.rforearm.dim[1] / 2, 0),
+                   vec(2, 3, 1),
+                   stiffness),
+        Constraint(skeleton.lfoot, vec(0, -skeleton.lfoot.dim[1] / 2, 0),
+                   vec(-2, -2, 0),
+                   stiffness),
+        Constraint(skeleton.rfoot, vec(0, -skeleton.rfoot.dim[1] / 2, 0),
+                   vec(2, -2, 0),
+                   stiffness),
+    ]
+    
+    graph = Graph([], [], {})
+
+
+    skeleton.fill_graph( graph )
+    constraints.fill_graph(graph)
+    
+    root_vertex = graph.helper[skeleton.bodies[1]]
+    
+    forward = graph.orient( root_vertex )
 
 
     s = solver(skeleton, graph, forward, 0.5)
