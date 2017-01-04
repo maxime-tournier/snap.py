@@ -1,7 +1,8 @@
 # MIT license
 # tournier.maxime@gmail.com
-
 '''rigid-body kinematics'''
+
+from __future__ import print_function, absolute_import
 
 import numpy as np
 
@@ -15,21 +16,42 @@ def vec(*coords):
     return np.array(coords, dtype = float)
 
 
-
 deg = 180.0 / math.pi
 
 ex = vec(1, 0, 0)
 ey = vec(0, 1, 0)
 ez = vec(0, 0, 1)
 
+
 class Rigid3(np.ndarray):
-
     dim = 6
-    
-    # note: lie algebra coordinates are (rotation, translation)
 
-    # TODO: make a twist class ?
+    __slots__ = ()
     
+    class Deriv(np.ndarray):
+        '''lie algebra element as (translation, rotation)'''
+        __slots__ = ()
+
+        def __new__(cls, *args, **kwargs):
+            return np.ndarray.__new__(cls, 6)
+
+        @property
+        def linear(self):
+            return self[:3].view( np.ndarray )
+
+        @linear.setter
+        def linear(self, value):
+            self[:3] = value
+
+        @property
+        def angular(self):
+            return self[3:].view( np.ndarray )
+
+        @angular.setter
+        def angular(self, value):
+            self[3:] = value
+
+
     @property
     def center(self):
         '''translation'''
@@ -114,18 +136,18 @@ class Rigid3(np.ndarray):
         
         res = Rigid3()
 
-        res.orient = Quaternion.exp( x[:3] )
-        res.center = res.orient( Quaternion.dexp( x[:3] ).dot( x[3:] ) )
+        res.orient = Quaternion.exp( x.angular )
+        res.center = res.orient( Quaternion.dexp( x.angular ).dot( x.linear ) )
 
         return res
 
     
     def log(self):
 
-        res = np.zeros(6)
+        res = Rigid3.Deriv()
 
-        res[:3] = self.orient.log()
-        res[3:] = self.orient.dlog().dot( self.orient.conj()( self.center ) )
+        res.angular = self.orient.log()
+        res.linear = self.orient.dlog().dot( self.orient.conj()( self.center ) )
 
         return res
 
@@ -134,7 +156,8 @@ class Rigid3(np.ndarray):
     
     
 class Quaternion(np.ndarray):
-
+    __slots__ = ()
+    
     dim = 3
     epsilon = sys.float_info.epsilon
     
