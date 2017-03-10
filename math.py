@@ -37,22 +37,26 @@ class Rigid3(np.ndarray):
 
         def __init__(self):
             self[:] = 0
+
+        angular_slice = slice(3, None)
+        linear_slice = slice(None, 3)
         
         @property
         def linear(self):
-            return self[:3].view( np.ndarray )
+            return self[ Rigid3.Deriv.linear_slice ].view( np.ndarray )
 
         @linear.setter
         def linear(self, value):
-            self[:3] = value
+            self[ Rigid3.Deriv.linear_slice ] = value
 
+        
         @property
         def angular(self):
-            return self[3:].view( np.ndarray )
+            return self[ Rigid3.Deriv.angular_slice ].view( np.ndarray )
 
         @angular.setter
         def angular(self, value):
-            self[3:] = value
+            self[ Rigid3.Deriv.angular_slice ] = value
 
 
     @property
@@ -112,11 +116,13 @@ class Rigid3(np.ndarray):
         R = self.orient.matrix()
         t = Quaternion.hat(self.center)
 
+        ang = Rigid3.Deriv.angular_slice
+        lin = Rigid3.Deriv.linear_slice
         
-        res[:3, :3] = R
-        res[3:, 3:] = R
-
-        res[3:, :3] = t.dot(R)
+        res[ang, ang] = R
+        res[lin, lin] = R
+        
+        res[lin, ang] = t.dot(R)
 
         return res
 
