@@ -350,7 +350,10 @@ class Quaternion(np.ndarray):
             
         res /= theta
         return res
-    
+
+
+    def Ad(self):
+        return self.matrix()
     
     @staticmethod
     def hat(v):
