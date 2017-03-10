@@ -35,6 +35,9 @@ class Rigid3(np.ndarray):
         def __new__(cls, *args, **kwargs):
             return np.ndarray.__new__(cls, 6)
 
+        def __init__(self):
+            self[:] = 0
+        
         @property
         def linear(self):
             return self[:3].view( np.ndarray )
