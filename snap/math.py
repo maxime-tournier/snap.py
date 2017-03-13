@@ -258,7 +258,7 @@ class Quaternion(np.ndarray):
         
         if math.fabs(theta) < Quaternion.epsilon:
             res.imag = x / 2.0
-            # res.normalize()
+            res.normalize()
             return res
 
         half_theta = theta / 2.0

@@ -4,6 +4,12 @@ provides a QGLWidget with basic viewing features.
 
 The goal is to have something easy to hack from for trying stuff out.
 
+There is a `subtree` branch you can easily add as a submodule into an
+existing git repository using:
+
+`git submodule add -b subtree git@github.com:maxime-tournier/snap.py.git snap`
+
+
 ## DONE
 
 - viewport/projection matrix
