@@ -200,7 +200,7 @@ class Camera(object):
         while True:
 	    ev = yield
             
-	    degrees = float(ev.angleDelta().y()) / 256.0
+	    degrees = float( wheel_angle(ev)) / 256.0
 
             u = self.frame.inv()(self.pivot)
             
