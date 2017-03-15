@@ -1,7 +1,6 @@
 # MIT license
 # tournier.maxime@gmail.com
 
-
 import OpenGL
 
 from OpenGL.GL import *
@@ -15,7 +14,6 @@ from . import gl
 
 import time
 import sys
-
 		
 class Camera(object):
 	
@@ -201,7 +199,8 @@ class Camera(object):
 		
         while True:
 	    ev = yield
-	    degrees = float(ev.delta()) / 256.0
+            
+	    degrees = float(ev.angleDelta().y()) / 256.0
 
             u = self.frame.inv()(self.pivot)
             
@@ -246,7 +245,7 @@ class Camera(object):
 
             scale = norm(self.frame.center - self.pivot)
             
-            f.orient = Quaternion.exp( scale * 10 * self.rotation_sensitivity * f.orient.log() )
+            f.orient = Quaternion.exp( scale * 16 * self.rotation_sensitivity * f.orient.log() )
             
             t = Rigid3()
             t.center = self.pivot
@@ -350,15 +349,17 @@ class Viewer(QtOpenGL.QGLWidget):
 
             self.animate()
             self.updateGL()
-			
-	    connect(self.animation, 'timeout()', on_timeout)
+
+        connect(self.animation, 'timeout()', on_timeout)
         self.fps = 60
 
         # a timer to post updateGL events
         self.update_timer = QtCore.QTimer()
         self.update_timer.setSingleShot( True )
         self.update_timer.setInterval(0)
-        self.connect(self.update_timer, QtCore.SIGNAL("timeout()"), self.update)
+
+        connect(self.update_timer, 'timeout()', self.update)
+        # self.connect(self.update_timer, QtCore.SIGNAL("timeout()"), self.update)
 
         # a nice signal to control it
         self.update_needed.connect(self.update_timer.start)
@@ -378,7 +379,7 @@ class Viewer(QtOpenGL.QGLWidget):
         return QtCore.QSize(100, 300)
 
     def sizeHint(self):
-	rec = QtGui.QApplication.desktop().screenGeometry()
+	rec = QApplication.desktop().screenGeometry()
 
         # widget height is half screen height
         factor = 1.0 / 2.0
@@ -568,24 +569,6 @@ class Viewer(QtOpenGL.QGLWidget):
         
 from contextlib import contextmanager
 
-@contextmanager
-def app():
-	
-    import sys
-    res = QApplication(sys.argv)
-
-    def quit():
-	sys.exit(0)
-		
-    res.connect(res, QtCore.SIGNAL("aboutToQuit()"), quit)
-    
-    try:
-	yield res
-    finally:
-	sys.exit( res.exec_() )
-
-        
-    
 def run():
 
     import sys
