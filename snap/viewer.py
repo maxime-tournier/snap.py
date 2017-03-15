@@ -480,8 +480,9 @@ class Viewer(QtOpenGL.QGLWidget):
 	    self.showFullScreen()
 
 
-    def keyPressEvent(self, e):
+    def on_keypress(self, key): pass
 
+    def keyPressEvent(self, e):
         if e.key() == QtCore.Qt.Key_Return:
             if e.modifiers() == Viewer.alt_button:
 		self.toggle_fullscreen()
@@ -495,6 +496,8 @@ class Viewer(QtOpenGL.QGLWidget):
         if e.text() == 'a':
 	    self.show_axis = not self.show_axis
 	    self.update()
+        
+        self.on_keypress(e.text())
 			
     def mouseReleaseEvent(self, e):
 	self.mouse_move_handler = None
