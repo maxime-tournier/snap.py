@@ -14,7 +14,6 @@ try:
         return ev.delta()
     
 except ImportError as e:
-    print(e)
     import PyQt5
     from PyQt5 import QtCore, QtGui, QtOpenGL, QtWidgets
     from PyQt5.QtWidgets import QApplication
@@ -38,7 +37,7 @@ def app():
     res = QApplication(sys.argv)
     
     try:
-	yield res
+	    yield res
     finally:
-	res.exec_()
+	    res.exec_()
 
