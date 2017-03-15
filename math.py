@@ -333,10 +333,10 @@ class Quaternion(np.ndarray):
         if half_angle > Quaternion.epsilon:
             return q.imag / math.sin(half_angle), 2 * half_angle
 
-        norm = q.imag.norm()
-        if norm > Quaternion.epsilon:
+        n = norm(q.imag)
+        if n > Quaternion.epsilon:
             sign = 1.0 if half_angle > 0 else -1.0
-            return q.imag * (sign / norm), 2 * half_angle
+            return q.imag * (sign / n), 2 * half_angle
         
         return None, 2 * half_angle
 
