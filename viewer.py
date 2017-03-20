@@ -471,7 +471,7 @@ class Viewer(QtOpenGL.QGLWidget):
 
 
     def animate(self): pass
-
+    def reset(self): pass
 
     def toggle_fullscreen(self):
         if self.isFullScreen():
@@ -493,6 +493,9 @@ class Viewer(QtOpenGL.QGLWidget):
         if e.key() == QtCore.Qt.Key_Escape:
 	    self.close()
 
+        if e.key() == QtCore.Qt.Key_Backspace:
+	    self.reset()
+            
         if e.text() == 'a':
 	    self.show_axis = not self.show_axis
 	    self.update()
@@ -524,8 +527,8 @@ class Viewer(QtOpenGL.QGLWidget):
     def draw(self):
         pass
 
-
-    def draw_axis(self):
+    @staticmethod
+    def draw_axis():
 
         glColor(1, 1, 1)
         gl.sphere(radius = 0.025)
@@ -554,7 +557,7 @@ class Viewer(QtOpenGL.QGLWidget):
         glPushMatrix()
 
         # axis/grid
-        if self.show_axis: self.draw_axis()
+        if self.show_axis: Viewer.draw_axis()
         
         if self.draw_handler:
             try:
@@ -581,6 +584,7 @@ def run():
     init = main.get('init', None)
     draw = main.get('draw', None)
     animate = main.get('animate', None)
+    reset = main.get('reset', None)    
     keypress = main.get('keypress', None)
     select = main.get('select', None)
     drag = main.get('drag', None)        
@@ -596,6 +600,11 @@ def run():
         def select(self, p):
             if select: select(p)
 
+        def reset(self):
+            if reset:
+                reset()
+                self.updateGL()
+            
         def drag(self, p):
             if drag: drag(p)
             
