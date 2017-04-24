@@ -227,13 +227,10 @@ class Quaternion(np.ndarray):
 
     def __call__(self, x):
         '''rotate a vector. self should be normalized'''
-        
-        tmp = Quaternion()
-        tmp.real = 0
-        tmp.imag = x
 
-        return (self * tmp * self.conj()).imag
-
+        cross = np.cross(self.imag, x)
+        return x + (2 * self.real) * cross + np.cross(self.imag, cross)
+    
 
     # TODO this is horribly inefficient, optimize
     def matrix(self):
