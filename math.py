@@ -22,6 +22,17 @@ ex = vec(1, 0, 0)
 ey = vec(0, 1, 0)
 ez = vec(0, 0, 1)
 
+# slices for quaternion/rigid/deriv
+imag_slice = slice(None, 3)
+real_index = -1
+
+angular_slice = slice(3, None)
+linear_slice = slice(None, 3)
+
+orient_slice = slice(3, None)
+center_slice = slice(None, 3)
+
+
 
 class Rigid3(np.ndarray):
     dim = 6
@@ -38,25 +49,22 @@ class Rigid3(np.ndarray):
         def __init__(self):
             self[:] = 0
 
-        angular_slice = slice(3, None)
-        linear_slice = slice(None, 3)
-        
         @property
         def linear(self):
-            return self[ Rigid3.Deriv.linear_slice ].view( np.ndarray )
+            return self[ linear_slice ].view( np.ndarray )
 
         @linear.setter
         def linear(self, value):
-            self[ Rigid3.Deriv.linear_slice ] = value
+            self[ linear_slice ] = value
 
         
         @property
         def angular(self):
-            return self[ Rigid3.Deriv.angular_slice ].view( np.ndarray )
+            return self[ angular_slice ].view( np.ndarray )
 
         @angular.setter
         def angular(self, value):
-            self[ Rigid3.Deriv.angular_slice ] = value
+            self[ angular_slice ] = value
 
 
     @property
@@ -116,8 +124,8 @@ class Rigid3(np.ndarray):
         R = self.orient.matrix()
         t = Quaternion.hat(self.center)
 
-        ang = Rigid3.Deriv.angular_slice
-        lin = Rigid3.Deriv.linear_slice
+        ang = angular_slice
+        lin = linear_slice
         
         res[ang, ang] = R
         res[lin, lin] = R
@@ -152,7 +160,7 @@ class Rigid3(np.ndarray):
 
     
     def log(self):
-
+        '''SE(3) logarithm'''
         res = Rigid3.Deriv()
 
         res.angular = self.orient.log()
@@ -193,19 +201,19 @@ class Quaternion(np.ndarray):
     @property
     def real(self):
         '''real part'''
-        return self[-1]
+        return self[real_index]
 
     @real.setter
     def real(self, value):
-        self[-1] = value
+        self[real_index] = value
 
     @property
     def imag(self):
         '''imaginary part'''
-        return self[:3].view( np.ndarray )
+        return self[imag_slice].view( np.ndarray )
 
     @imag.setter
-    def imag(self, value): self[:3] = value
+    def imag(self, value): self[imag_slice] = value
 
     def normalize(self):
         '''normalize quaternion'''
@@ -231,17 +239,12 @@ class Quaternion(np.ndarray):
         cross = np.cross(self.imag, x)
         return x + (2 * self.real) * cross + np.cross(self.imag, cross)
     
-
-    # TODO this is horribly inefficient, optimize
+    # TODO optimize ?
     def matrix(self):
         '''rotation matrix'''
 
-        R = np.identity(3)
-
-        for i in range(3):
-            R[:, i] = self( np.eye(1, 3, i) )
-
-        return R
+        K = Quaternion.hat(self.imag)
+        return np.identity(3) + (2*self.real) * K + K.dot(K)
         
     
     @staticmethod
@@ -374,13 +377,14 @@ class Quaternion(np.ndarray):
         
         res = np.zeros( (3, 3) )
 
-        res[0, 1] = -v[2]
-        res[0, 2] = v[1]
-        res[1, 2] = -v[0]
-
-        res -= res.T
+        res[:] = [[    0, -v[2],  v[1]],
+                  [ v[2],     0, -v[0]],
+                  [-v[1],  v[0],     0]]
 
         return res
 
 
-    
+    def slerp(self, q2, t):
+        '''spherical linear interpolation between q1 and q2'''
+        # TODO optimize
+        return self * Quaternion.exp( t * (self.conj() * q2).log() )
