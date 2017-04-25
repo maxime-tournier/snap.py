@@ -236,15 +236,15 @@ class Quaternion(np.ndarray):
     def __call__(self, x):
         '''rotate a vector. self should be normalized'''
 
-        cross = np.cross(self.imag, x)
-        return x + (2 * self.real) * cross + np.cross(self.imag, cross)
+        cross = 2 * np.cross(self.imag, x)
+        return x + self.real * cross + np.cross(self.imag, cross)
     
     # TODO optimize ?
     def matrix(self):
         '''rotation matrix'''
 
         K = Quaternion.hat(self.imag)
-        return np.identity(3) + (2*self.real) * K + K.dot(K)
+        return np.identity(3) + (2*self.real) * K + 2 * K.dot(K)
         
     
     @staticmethod
