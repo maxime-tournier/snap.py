@@ -62,7 +62,7 @@ class Camera(object):
         axis, angle = inv.orient.axis_angle()
         
         if axis is not None:
-	    res.rotate(angle * deg, *axis)
+            res.rotate(angle * deg, *axis)
         return res
 
 
