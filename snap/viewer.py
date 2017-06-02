@@ -14,11 +14,11 @@ from . import gl
 
 import time
 import sys
-		
+        
 class Camera(object):
-	
+    
     def __init__(self, owner):
-		
+        
         self.owner = owner
 
         # frame/pivot
@@ -48,7 +48,7 @@ class Camera(object):
     def projection(self):
         res = QtGui.QMatrix4x4()
         
-        res.setToIdentity()	   
+        res.setToIdentity()       
         res.perspective(self.vfov, self.ratio, self.znear, self.zfar)
         return res
 
@@ -87,8 +87,8 @@ class Camera(object):
     def pixel_depth(self, px, py):
         '''read depth under pixel, or None'''
         read = glReadPixels(px, self.owner.height() - 1 - py,
-			    1, 1,
-			    GL_DEPTH_COMPONENT, GL_FLOAT)
+                            1, 1,
+                            GL_DEPTH_COMPONENT, GL_FLOAT)
 
         res = read[0][0]
         return res if res < 1.0 else None
@@ -106,8 +106,8 @@ class Camera(object):
     
     @coroutine
     def mouse_translate(self, start):
-	'''translate camera from mouse move events'''
-	start_pos = start.pos()
+        '''translate camera from mouse move events'''
+        start_pos = start.pos()
 
         start_frame = Rigid3()
         start_frame[:] = self.frame
@@ -122,7 +122,7 @@ class Camera(object):
         s = self.unproject(Pinv, sx, sy, z)
 
         while True:
-	    ev = yield
+            ev = yield
 
             ex, ey = self.pixel_coords(ev.pos().x(), ev.pos().y())
             e = self.unproject(Pinv, ex, ey, z)
@@ -141,8 +141,8 @@ class Camera(object):
 
 
     def axis_align(self):
-	'''align camera with nearest axis'''
-		
+        '''align camera with nearest axis'''
+                
         pos = np.abs(self.frame.center - self.pivot).tolist()
         
         index = pos.index( max(pos) )
@@ -170,8 +170,8 @@ class Camera(object):
         
         
     def lookat(self, target, **kwargs):
-	'''make camera point at target'''
-		
+        '''make camera point at target'''
+                
         local_target = self.frame.inv()(target)
         q = Quaternion.from_vectors(-ez, local_target)
         
@@ -195,12 +195,12 @@ class Camera(object):
         
     @coroutine
     def mouse_zoom(self):
-	'''ajust zoom from mouse'''
-		
+        '''ajust zoom from mouse'''
+
         while True:
-	    ev = yield
+            ev = yield
             
-	    degrees = float( wheel_angle(ev)) / 256.0
+            degrees = float( wheel_angle(ev)) / 256.0
 
             u = self.frame.inv()(self.pivot)
             
@@ -220,7 +220,7 @@ class Camera(object):
 
     @coroutine
     def mouse_rotate(self, start):
-	'''rotate camera from mouse move events'''
+        '''rotate camera from mouse move events'''
 
         start_pos = start.pos()
 
@@ -234,7 +234,7 @@ class Camera(object):
 
         
         while True:
-	    ev = yield
+            ev = yield
 
             ex, ey = self.pixel_coords(ev.pos().x(), ev.pos().y())
             e = start_frame( self.unproject(Pinv, ex, ey) )
@@ -274,7 +274,7 @@ class Camera(object):
         s = start_frame( self.unproject(Pinv, sx, sy, z) )
 
         while True:
-	    ev = yield
+            ev = yield
             
             ex, ey = self.pixel_coords(ev.pos().x(), ev.pos().y())
             e = start_frame( self.unproject(Pinv, ex, ey, z) )
@@ -284,13 +284,13 @@ class Camera(object):
             
     @coroutine
     def spin(self):
-	'''rotate camera around pivot (damped) on each call to next'''
+        '''rotate camera around pivot (damped) on each call to next'''
 
         delta = Rigid3()
         delta[:] = self.dframe 
 
         while True:
-	    yield
+            yield
 
             # 1% damping
             factor = 1.0 - self.damping
@@ -304,12 +304,12 @@ class Camera(object):
 
     @coroutine            
     def slide(self):
-	'''translate camera with constant local direction (damped) on each call to next'''
-	delta = Rigid3()
-	delta[:] = self.dframe 
+        '''translate camera with constant local direction (damped) on each call to next'''
+        delta = Rigid3()
+        delta[:] = self.dframe 
 
         while True:
-	    yield
+            yield
 
             factor = 1.0 - self.damping
             vel = factor * delta.log()
@@ -326,7 +326,7 @@ class Viewer(QtOpenGL.QGLWidget):
     alt_button = QtCore.Qt.CTRL if sys.platform == 'darwin' else QtCore.Qt.ALT
     
     def __init__(self, parent=None):
-	super(Viewer, self).__init__(parent)
+        super(Viewer, self).__init__(parent)
 
         self.camera = Camera(self)
 
@@ -372,15 +372,15 @@ class Viewer(QtOpenGL.QGLWidget):
 
     @fps.setter
     def fps(self, value):
-	interval = (1.0 / value) * 1000.0
-	self.animation.setInterval( interval )
+        interval = (1.0 / value) * 1000.0
+        self.animation.setInterval( interval )
 
     def minimumSizeHint(self):
         return QtCore.QSize(100, 300)
 
     def sizeHint(self):
-	rec = QApplication.desktop().screenGeometry()
-
+        rec = QApplication.desktop().screenGeometry()
+        
         # widget height is half screen height
         factor = 1.0 / 2.0
 
@@ -401,8 +401,8 @@ class Viewer(QtOpenGL.QGLWidget):
     def init(self): pass
     
     def initializeGL(self):
-	bg = QtGui.QColor.fromCmykF(0.39, 0.39, 0.0, 0.0).darker()
-		
+        bg = QtGui.QColor.fromCmykF(0.39, 0.39, 0.0, 0.0).darker()
+        
         self.qglClearColor(bg)
 
         self.resizeGL(self.width(), self.height())
@@ -422,13 +422,13 @@ class Viewer(QtOpenGL.QGLWidget):
 
     def update(self):
         if not self.animation.isActive():
-	    self.updateGL()
+            self.updateGL()
                         
     def mouseMoveEvent(self, e):
-	
+
         if self.mouse_move_handler:
-	    self.mouse_move_handler.send( e )
-	    self.update()
+            self.mouse_move_handler.send( e )
+            self.update()
 
             
     def select(self, p): pass
@@ -436,38 +436,38 @@ class Viewer(QtOpenGL.QGLWidget):
     
     
     def mousePressEvent(self, e):
-	self.draw_handler = None
-	self.camera.dframe = Rigid3()
-		
+        self.draw_handler = None
+        self.camera.dframe = Rigid3()
+                
         if e.button() == QtCore.Qt.LeftButton:
             if e.modifiers() == QtCore.Qt.SHIFT:
-		p = self.camera.point_under_pixel(e.pos().x(), e.pos().y())
+                p = self.camera.point_under_pixel(e.pos().x(), e.pos().y())
 
                 if p is not None:
-		    self.select( self.camera.frame(p))
-		    self.mouse_move_handler = self.camera.mouse_drag(e)
-					
+                    self.select( self.camera.frame(p))
+                    self.mouse_move_handler = self.camera.mouse_drag(e)
+                                        
             else:
-		self.mouse_move_handler = self.camera.mouse_rotate(e)
-		self.update()
-				
+                self.mouse_move_handler = self.camera.mouse_rotate(e)
+                self.update()
+                                
         if e.button() == QtCore.Qt.RightButton:
             if e.modifiers() == QtCore.Qt.SHIFT:
-				
+                                
                 p = self.camera.point_under_pixel(e.pos().x(), e.pos().y())
                 if p is not None:
-		    self.camera.pivot = self.camera.frame(p)
-		    self.update()
+                    self.camera.pivot = self.camera.frame(p)
+                    self.update()
             else:
-		self.mouse_move_handler = self.camera.mouse_translate(e)
-		self.update()
+                self.mouse_move_handler = self.camera.mouse_translate(e)
+                self.update()
 
 
     def mouseDoubleClickEvent(self, e):
 
         if e.button() == QtCore.Qt.LeftButton:
-	    self.camera.axis_align()
-	    self.update()
+            self.camera.axis_align()
+            self.update()
 
 
     def animate(self): pass
@@ -475,9 +475,9 @@ class Viewer(QtOpenGL.QGLWidget):
 
     def toggle_fullscreen(self):
         if self.isFullScreen():
-	    self.showNormal()
+            self.showNormal()
         else:
-	    self.showFullScreen()
+            self.showFullScreen()
 
 
     def on_keypress(self, key): pass
@@ -485,43 +485,43 @@ class Viewer(QtOpenGL.QGLWidget):
     def keyPressEvent(self, e):
         if e.key() == QtCore.Qt.Key_Return:
             if e.modifiers() == Viewer.alt_button:
-		self.toggle_fullscreen()
+                self.toggle_fullscreen()
             else:
                 if self.animation.isActive(): self.animation.stop()
                 else: self.animation.start()
 
         if e.key() == QtCore.Qt.Key_Escape:
-	    self.close()
+            self.close()
 
         if e.key() == QtCore.Qt.Key_Backspace:
-	    self.reset()
+            self.reset()
             
         if e.text() == 'a':
-	    self.show_axis = not self.show_axis
-	    self.update()
+            self.show_axis = not self.show_axis
+            self.update()
         
         self.on_keypress(e.text())
-			
+                        
     def mouseReleaseEvent(self, e):
-	self.mouse_move_handler = None
+        self.mouse_move_handler = None
 
         if e.button() == QtCore.Qt.LeftButton:
-			
+                        
             if norm(self.camera.dframe.log()) > 0.1:
-		self.draw_handler = self.camera.spin()
-		self.update()
-				
+                self.draw_handler = self.camera.spin()
+                self.update()
+                                
         if e.button() == QtCore.Qt.RightButton:
-			
+                        
             if norm(self.camera.dframe.log()) > 0.1:
-	        self.draw_handler = self.camera.slide()
-		self.update()
+                self.draw_handler = self.camera.slide()
+                self.update()
 
 
                 
     def wheelEvent(self, e):
-	self.mouse_wheel_handler.send(e)
-	self.update()
+        self.mouse_wheel_handler.send(e)
+        self.update()
 
 
     def draw(self):
@@ -535,21 +535,21 @@ class Viewer(QtOpenGL.QGLWidget):
         
         glColor(1, 0.2, 0.2)
         with gl.lookat(ex):
-	    gl.arrow()            
-			
+            gl.arrow()            
+                        
         glColor(0.2, 1, 0.2)
         with gl.lookat(ey):
-	    gl.arrow()            
-			
+            gl.arrow()            
+                        
         glColor(0.2, 0.2, 1)
         with gl.lookat(ez):
-	    gl.arrow()            
+            gl.arrow()            
 
     
     def paintGL(self):
-	glMatrixMode(GL_PROJECTION)
-	glLoadMatrixd(self.camera.projection.data())
-		
+        glMatrixMode(GL_PROJECTION)
+        glLoadMatrixd(self.camera.projection.data())
+                
         glMatrixMode(GL_MODELVIEW)
         glLoadMatrixd(self.camera.modelview.data())
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -561,11 +561,11 @@ class Viewer(QtOpenGL.QGLWidget):
         
         if self.draw_handler:
             try:
-		next(self.draw_handler)
-		self.update_needed.emit()
+                next(self.draw_handler)
+                self.update_needed.emit()
             except StopIteration:
-		self.draw_handler = None
-				
+                self.draw_handler = None
+                                
         self.draw()
 
         # or glFlush ?
@@ -590,7 +590,7 @@ def run():
     drag = main.get('drag', None)        
     
     class SimpleViewer(Viewer):
-		
+                
         def init(self):
             if init: init()
 
@@ -616,5 +616,5 @@ def run():
             else: Viewer.keyPressEvent(self, e)
 
     with app():
-	w = SimpleViewer()
-	w.show()
+        w = SimpleViewer()
+        w.show()
