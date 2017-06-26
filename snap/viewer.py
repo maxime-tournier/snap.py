@@ -318,6 +318,22 @@ class Camera(object):
             delta = Rigid3.exp( vel )
             self.frame[:] = self.frame * delta
 
+def draw_axis():
+
+    glColor(1, 1, 1)
+    gl.sphere(radius = 0.025)
+
+    glColor(1, 0.2, 0.2)
+    with gl.lookat(ex):
+        gl.arrow()            
+
+    glColor(0.2, 1, 0.2)
+    with gl.lookat(ey):
+        gl.arrow()            
+
+    glColor(0.2, 0.2, 1)
+    with gl.lookat(ez):
+        gl.arrow()            
 
 
             
@@ -527,23 +543,6 @@ class Viewer(QtOpenGL.QGLWidget):
     def draw(self):
         pass
 
-    @staticmethod
-    def draw_axis():
-
-        glColor(1, 1, 1)
-        gl.sphere(radius = 0.025)
-        
-        glColor(1, 0.2, 0.2)
-        with gl.lookat(ex):
-            gl.arrow()            
-                        
-        glColor(0.2, 1, 0.2)
-        with gl.lookat(ey):
-            gl.arrow()            
-                        
-        glColor(0.2, 0.2, 1)
-        with gl.lookat(ez):
-            gl.arrow()            
 
     
     def paintGL(self):
@@ -557,7 +556,7 @@ class Viewer(QtOpenGL.QGLWidget):
         glPushMatrix()
 
         # axis/grid
-        if self.show_axis: Viewer.draw_axis()
+        if self.show_axis: draw_axis()
         
         if self.draw_handler:
             try:

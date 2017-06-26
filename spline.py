@@ -41,7 +41,6 @@ g2 = h01 + h10 / 2
 g3 = h11 / 2
 
 
-
 c3 = g3
 c2 = g2 + c3
 c1 = g1 + c2
@@ -87,7 +86,7 @@ def spline(nodes, values, ts):
         yield h00(x) * p0 + h01(x) * p1 + h10(x) * m0 + h11(x) * m1
 
 
-def spline_points(nodes, values, ts):
+def spline_point_basis(nodes, values, ts):
 
     nodes = pad_nodes(nodes)
     values = pad_values(values)
@@ -112,7 +111,7 @@ def spline_points(nodes, values, ts):
 
 
 
-def spline_cumulative_factors_window(padded_nodes, ts):
+def cumulative_factors_window(padded_nodes, ts):
 
     w = None
 
@@ -136,21 +135,63 @@ def spline_cumulative(nodes, values, ts):
     nodes = pad_nodes(nodes)
     values = pad_values(values)    
 
-    for alpha, win in spline_cumulative_factors_window(nodes, ts):
+    for alpha, win in cumulative_factors_window(nodes, ts):
+
         v = values[win]
-        
         dv = v[1:] - v[:-1]
         
         yield alpha[0] * v[0] + alpha[1:].dot(dv)
 
-        
-sampled_nodes = np.linspace(nodes[0], nodes[-1], 300)
+
+def quaternion_spline_cumulative(nodes, values, ts):
+    
+    nodes = pad_nodes(nodes)
+    values = pad_values(values)    
+
+    exp = Quaternion.exp
+    
+    for alpha, win in cumulative_factors_window(nodes, ts):
+        q = values[win]
+
+        omega = np.zeros((3, 3))
+
+        # TODO factorize
+        omega[0] = (q[0].view(Quaternion).inv() * q[1].view(Quaternion)).log()
+        omega[1] = (q[1].view(Quaternion).inv() * q[2].view(Quaternion)).log()
+        omega[2] = (q[2].view(Quaternion).inv() * q[3].view(Quaternion)).log()
+
+        yield (exp( alpha[0] * q[0].view(Quaternion).log()) *
+               exp( alpha[1] * omega[0] ) *
+               exp( alpha[2] * omega[1]) *
+               exp( alpha[3] * omega[2]))
+
+
+m = 300       
+sampled_nodes = np.linspace(nodes[0], nodes[-1], m)
 
 sampled_points = list(spline(nodes, points, sampled_nodes))
-sampled_points2 = list(spline_points(nodes, points, sampled_nodes))
+sampled_points2 = list(spline_point_basis(nodes, points, sampled_nodes))
 sampled_points3 = list(spline_cumulative(nodes, points, sampled_nodes))
 
 
+quats = np.random.rand(n, 4) - 0.5
+
+for i in range(n):
+    quats[i].view(Quaternion).normalize()
+
+frame = 0
+
+sampled_quats = list(quaternion_spline_cumulative(nodes, quats, sampled_nodes))
+
+q = Quaternion()
+
+def animate():
+    global frame
+    frame = (frame + 1) % m
+
+    q[:] = sampled_quats[frame]
+    
+    
 def draw():
     m = 100
 
@@ -186,13 +227,14 @@ def draw():
     for p in sampled_points3:
         glVertex(p)
     glEnd()
-    
 
     
     glEnable(GL_LIGHTING)
 
 
-
+    with push_matrix():
+        rotate(q)
+        viewer.draw_axis()
 
 if __name__ == '__main__':
     viewer.run()
