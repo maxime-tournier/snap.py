@@ -6,172 +6,20 @@ from numpy.polynomial.polynomial import Polynomial
 from snap.math import *
 from snap.gl import *
 
-from snap import viewer
+from snap import viewer, tool, spline
 
 
 
 
-def window(nodes, t, n = 4):
-    start = np.searchsorted(nodes, t)
-    if nodes[start] > t: start = start - 1
-    # print('t', t, 'start', start, nodes)
-
-    return slice(start - (n - 1) / 2, start + n / 2 + 1)
     
 
 n = 10
 
 nodes = np.linspace(-100, 100, n)
-# nodes = np.arange(n)
 points = np.random.rand(n, 3)
 
-
-print(nodes)
-
-# hermite basis
-h00 = Polynomial( (1, 0, -3, 2) )
-h10 = Polynomial( (0, 1, -2, 1) )
-h01 = Polynomial( (0, 0, 3, -2) )
-h11 = Polynomial( (0, 0, -1, 1) )
-
-
-g0 = -h10 / 2
-g1 = h00 - h11 / 2
-g2 = h01 + h10 / 2
-g3 = h11 / 2
-
-
-c3 = g3
-c2 = g2 + c3
-c1 = g1 + c2
-c0 = g0 + c1
-
-
-
-def pad_nodes( nodes ):
-    
-    return np.pad(nodes, (1, 2),
-                  'linear_ramp',
-                  end_values = (2 * nodes[0] - nodes[1],
-                                3 * nodes[-1] - 2 * nodes[-2]) )
-
-
-def pad_values( nodes ):
-    return np.pad(nodes, ((1, 2), (0, 0)), 'edge')
-
-
-
-def spline(nodes, values, ts):
-
-    nodes = pad_nodes(nodes)
-    values = pad_values(values)
-    
-    w = None
-
-    for t in ts:
-
-        if w is None or not (n[1] <= t < n[2]):
-            w = window(nodes, t)
-
-            n = nodes[w] 
-            v = values[w]
-            
-            t0, t1 = n[1], n[2]
-            p0, p1 = v[1:3]
-            m0, m1 = (v[-2] - v[0]) / 2, (v[-1] - v[1]) / 2
-
-            dt = float(t1 - t0)
-            
-        x = (t - t0) / dt
-        yield h00(x) * p0 + h01(x) * p1 + h10(x) * m0 + h11(x) * m1
-
-
-def spline_point_basis(nodes, values, ts):
-
-    nodes = pad_nodes(nodes)
-    values = pad_values(values)
-    
-    w = None
-
-    for t in ts:
-
-        if w is None or not (n[1] <= t < n[2]):
-            w = window(nodes, t)
-
-            n = nodes[w] 
-            v = values[w]
-            
-            t0, t1 = n[1], n[2]
-            dt = float(t1 - t0)
-
-        x = (t - t0) / dt
-        alpha = np.array([ g0(x), g1(x), g2(x), g3(x) ] )
-        
-        yield alpha.dot(v)
-
-
-
-def cumulative_factors_window(padded_nodes, ts):
-
-    w = None
-
-    for t in ts:
-
-        if w is None or not (n[1] <= t < n[2]):
-            w = window(padded_nodes, t)
-            n = padded_nodes[w] 
-
-            t0, t1 = n[1], n[2]
-            dt = float(t1 - t0)
-
-        x = (t - t0) / dt
-        alpha = np.array([ c0(x), c1(x), c2(x), c3(x) ] )
-
-        yield alpha, w
-
-
-def spline_cumulative(nodes, values, ts):
-
-    nodes = pad_nodes(nodes)
-    values = pad_values(values)    
-
-    for alpha, win in cumulative_factors_window(nodes, ts):
-
-        v = values[win]
-        dv = v[1:] - v[:-1]
-        
-        yield alpha[0] * v[0] + alpha[1:].dot(dv)
-
-
-def quaternion_spline_cumulative(nodes, values, ts):
-    
-    nodes = pad_nodes(nodes)
-    values = pad_values(values)    
-
-    exp = Quaternion.exp
-    
-    for alpha, win in cumulative_factors_window(nodes, ts):
-        q = values[win]
-
-        omega = np.zeros((3, 3))
-
-        # TODO factorize
-        omega[0] = (q[0].view(Quaternion).inv() * q[1].view(Quaternion)).log()
-        omega[1] = (q[1].view(Quaternion).inv() * q[2].view(Quaternion)).log()
-        omega[2] = (q[2].view(Quaternion).inv() * q[3].view(Quaternion)).log()
-
-        yield (exp( alpha[0] * q[0].view(Quaternion).log()) *
-               exp( alpha[1] * omega[0] ) *
-               exp( alpha[2] * omega[1]) *
-               exp( alpha[3] * omega[2]))
-
-
-m = 300       
+m = 1000       
 sampled_nodes = np.linspace(nodes[0], nodes[-1], m)
-
-sampled_points = list(spline(nodes, points, sampled_nodes))
-sampled_points2 = list(spline_point_basis(nodes, points, sampled_nodes))
-sampled_points3 = list(spline_cumulative(nodes, points, sampled_nodes))
 
 
 quats = np.random.rand(n, 4) - 0.5
@@ -181,15 +29,40 @@ for i in range(n):
 
 frame = 0
 
-sampled_quats = list(quaternion_spline_cumulative(nodes, quats, sampled_nodes))
 
-q = Quaternion()
+
+quat_spline = spline.Spline(nodes, quats, spline.RotationGroup() )
+vec3_spline = spline.Spline(nodes, points, spline.VectorSpace(3))
+
+sampled_quats = [quat_spline(x)[0] for x in sampled_nodes]
+sampled_omegas = [quat_spline(x)[1] for x in sampled_nodes]
+
+
+
+class State(object): pass
+state = State()
+
+state.q = Quaternion()
+state.dq = np.zeros(3)
+
+state.p = np.zeros(3)
+state.dp = np.zeros(3)
+
+state.frame = 0
+
+sampled_points = [vec3_spline(x)[0] for x in sampled_nodes]
+sampled_dpoints = [vec3_spline(x)[1] for x in sampled_nodes]
+
 
 def animate():
-    global frame
-    frame = (frame + 1) % m
 
-    q[:] = sampled_quats[frame]
+    state.frame = (state.frame + 1) % m
+
+    state.q[:] = sampled_quats[state.frame]
+    state.dq[:] = sampled_omegas[state.frame]
+
+    state.p[:] = sampled_points[state.frame]
+    state.dp[:] = sampled_dpoints[state.frame]
     
     
 def draw():
@@ -198,7 +71,23 @@ def draw():
     glDisable(GL_LIGHTING)
     glPointSize(5)
 
+    # interpolated point
+    glBegin(GL_POINTS)    
+    glColor(1, 0, 1)
+    glVertex(state.p)
+    glEnd()
+
+
+    # interpolated tangent
+    glBegin(GL_LINES)    
+    glColor(1, 0, 1)
+    glVertex(state.p - state.dp / 2)
+    glVertex(state.p + state.dp / 2)    
+    glEnd()
+
     
+
+    # curve + control points
     glBegin(GL_POINTS)
 
     glColor(1, 0, 0)
@@ -208,34 +97,27 @@ def draw():
     
     glBegin(GL_LINE_STRIP)    
     glColor(1, 1, 1)
-
     
     for p in sampled_points:
         glVertex(p)
-
-    glEnd()
-
-    glBegin(GL_LINE_STRIP)    
-    glColor(1, 1, 0)
-    for p in sampled_points2:
-        glVertex(p)
-    glEnd()
-
-
-    glBegin(GL_LINE_STRIP)    
-    glColor(0, 1, 1)
-    for p in sampled_points3:
-        glVertex(p)
     glEnd()
 
     
+    
     glEnable(GL_LIGHTING)
 
-
+    # interpolated frame
     with push_matrix():
-        rotate(q)
+        rotate(state.q)
         viewer.draw_axis()
 
+    # # angular velocity
+    with lookat(state.dq):
+        glColor(1, 0, 1)
+        arrow(height = norm(state.dq))        
+            
+
+        
 if __name__ == '__main__':
     viewer.run()
 
