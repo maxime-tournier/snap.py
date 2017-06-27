@@ -94,7 +94,7 @@ class Spline(object):
         
                 t = (x - x0) / delta
 
-                result = t, omega
+                result = t, delta, omega
 
         self.state = state()
 
@@ -102,10 +102,10 @@ class Spline(object):
         
     def __call__(self, x):
         
-        t, omega = self.state.send(x)
+        t, delta, omega = self.state.send(x)
 
         alpha = np.array( [ c0(t), c1(t), c2(t), c3(t) ] )
-        dalpha = np.array( [ dc0(t), dc1(t), dc2(t), dc3(t) ] )
+        dalpha = np.array( [ dc0(t), dc1(t), dc2(t), dc3(t) ] ) / delta
         
         result = self.group.identity()
 
@@ -115,7 +115,7 @@ class Spline(object):
         for i in range( alpha.size ):
             dresult = dresult + self.group.ad(result, dalpha[i] * omega[i])
             result = self.group.prod(result, self.group.exp( alpha[i] * omega[i] ))
-            
+
         return result, dresult
 
 

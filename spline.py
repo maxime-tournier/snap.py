@@ -30,15 +30,33 @@ frame = 0
 
 rigid_spline = spline.Spline(nodes, rigids, spline.TranslationRotationGroup())
 
-sampled_rigids = [rigid_spline(x)[0] for x in sampled_nodes]
+def test(s, eps = 1e-5):
+
+    def func(t):
+
+        pos, vel = s(t)
+
+        if t+eps < nodes[-1] and t - eps > nodes[0]:
+            pos_next, _ = s(t + eps)
+            pos_prev, _ = s(t - eps)
+        
+            dpos = (pos_next.center - pos_prev.center) / (2 * eps)
+            error = dpos - vel.view(Rigid3.Deriv).linear
+            # print(error)
+            
+        return pos, vel
+    
+    return func
+
+sampled_rigids = [ test(rigid_spline)(x)[0] for x in sampled_nodes]
 sampled_drigids = [rigid_spline(x)[1] for x in sampled_nodes]
 
 
 class State(object): pass
 state = State()
 
-state.g = sampled_rigids[0]
-state.dg = sampled_drigids[0]
+state.g = np.copy(sampled_rigids[0]).view(Rigid3)
+state.dg = np.copy(sampled_drigids[0]).view(Rigid3.Deriv)
 
 state.frame = 0
 
@@ -49,8 +67,9 @@ def animate():
 
     state.g[:] = sampled_rigids[state.frame]
     state.dg[:] = sampled_drigids[state.frame]
+
     
-    
+
 def draw():
     m = 100
 
@@ -61,10 +80,10 @@ def draw():
     glColor(1, 0, 0)
             
     glBegin(GL_LINE_STRIP)    
+
     glColor(1, 1, 1)
-    
     for g in sampled_rigids:
-        glVertex(g.view(Rigid3).center)
+        glVertex( g.view(Rigid3).center.tolist() )
     glEnd()
 
     
@@ -99,7 +118,7 @@ def draw():
             glColor(1, 1, 0)
             arrow(height = norm(state.dg.linear))        
         
-
+    glLoadIdentity()
         
 if __name__ == '__main__':
     viewer.run()
