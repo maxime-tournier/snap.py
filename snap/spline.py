@@ -162,12 +162,16 @@ class TranslationRotationGroup(object):
     def identity(self): return Rigid3()
 
     def prod(self, lhs, rhs):
+        lhs = lhs.view(Rigid3)
+        rhs = rhs.view(Rigid3)
+        
         res = Rigid3()
         res.center = lhs.center + rhs.center
         res.orient = lhs.orient * rhs.orient
         return res
     
     def inv(self, x):
+        x = x.view(Rigid3)
         res = Rigid3()
         res.center = -x.center
         res.orient = x.orient.conj()
