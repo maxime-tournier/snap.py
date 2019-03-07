@@ -83,10 +83,10 @@ class Camera(object):
 
     def pixel_depth(self, px, py):
         '''read depth under pixel, or None'''
+        self.owner.makeCurrent()
         read = glReadPixels(px, self.owner.height() - 1 - py,
                             1, 1,
                             GL_DEPTH_COMPONENT, GL_FLOAT)
-
         res = read[0][0]
         return res if res < 1.0 else None
 
@@ -341,7 +341,7 @@ def draw_axis():
         gl.arrow()
 
 
-class Viewer(QtOpenGL.QGLWidget):
+class Viewer(QtWidgets.QOpenGLWidget):
 
     alt_button = QtCore.Qt.CTRL if sys.platform == 'darwin' else QtCore.Qt.ALT
 
@@ -368,7 +368,7 @@ class Viewer(QtOpenGL.QGLWidget):
         def on_timeout():
 
             self.animate()
-            self.updateGL()
+            self.update()
 
         connect(self.animation, 'timeout()', on_timeout)
         self.fps = 60
@@ -384,6 +384,10 @@ class Viewer(QtOpenGL.QGLWidget):
         # a nice signal to control it
         self.update_needed.connect(self.update_timer.start)
 
+
+        
+
+        
     update_needed = signal()
 
     @property
@@ -419,10 +423,16 @@ class Viewer(QtOpenGL.QGLWidget):
 
     def init(self): pass
 
+    @property
+    def context(self):
+        return QtGui.QOpenGLContext.currentContext()
+    
     def initializeGL(self):
         bg = QtGui.QColor.fromCmykF(0.39, 0.39, 0.0, 0.0).darker()
 
-        self.qglClearColor(bg)
+        ctx = self.context
+        gl = ctx.functions()
+        gl.glClearColor(bg.redF(), bg.greenF(), bg.blueF(), bg.alphaF())
 
         self.resizeGL(self.width(), self.height())
 
@@ -438,9 +448,9 @@ class Viewer(QtOpenGL.QGLWidget):
 
         self.init()
 
-    def update(self):
-        if not self.animation.isActive():
-            self.updateGL()
+    # def update(self):
+    #     if not self.animation.isActive():
+    #         QtWidgets.QOpenGLWidget.update(self)
 
     def mouseMoveEvent(self, e):
 
@@ -459,7 +469,6 @@ class Viewer(QtOpenGL.QGLWidget):
         if e.button() == QtCore.Qt.LeftButton:
             if e.modifiers() == QtCore.Qt.SHIFT:
                 p = self.camera.point_under_pixel(e.pos().x(), e.pos().y())
-
                 if p is not None:
                     self.select(self.camera.frame(p))
                     self.mouse_move_handler = self.camera.mouse_drag(e)
@@ -470,7 +479,6 @@ class Viewer(QtOpenGL.QGLWidget):
 
         if e.button() == QtCore.Qt.RightButton:
             if e.modifiers() == QtCore.Qt.SHIFT:
-
                 p = self.camera.point_under_pixel(e.pos().x(), e.pos().y())
                 if p is not None:
                     self.camera.pivot = self.camera.frame(p)
@@ -610,7 +618,7 @@ def run():
         def reset(self):
             if reset:
                 reset()
-                self.updateGL()
+                self.update()
 
         def drag(self, p):
             if drag:
@@ -622,7 +630,7 @@ def run():
 
         def keyPressEvent(self, e):
             if keypress and keypress(e.text()):
-                self.updateGL()
+                self.update()
             else:
                 Viewer.keyPressEvent(self, e)
 
