@@ -1,6 +1,6 @@
 import snap
 
-from PySide import QtGui
+from PySide2 import QtWidgets
 
 import sys
 
@@ -14,11 +14,11 @@ from OpenGL.GLU import *
 from snap import gl
 import numpy as np
 
+import snap.viewer
 from snap.math import *
 
-class Viewer(snap.Viewer):
+class Viewer(snap.viewer.Viewer):
     
-
     def draw_cross(self):
 
         glColor(0.7, 0.7, 0.7)
@@ -52,7 +52,7 @@ class Viewer(snap.Viewer):
      
 if __name__ == '__main__':
     
-    app = QtGui.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
 
     def console(local):
         
@@ -68,8 +68,6 @@ if __name__ == '__main__':
     w = Viewer()
     w.show()
 
-
-    
     
     def cleanup():
         import os

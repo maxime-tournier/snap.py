@@ -23,18 +23,16 @@ ey = vec(0, 1, 0)
 ez = vec(0, 0, 1)
 
 # slices for quaternion/rigid/deriv
-imag_slice = slice(None, 3)
-real_index = -1
+imag_slice = slice(1, None)
+real_index = 0
 
-angular_slice = slice(3, None)
-linear_slice = slice(None, 3)
+angular_slice = slice(None, 3)
+linear_slice = slice(3, None)
 
-orient_slice = slice(3, None)
-center_slice = slice(None, 3)
-
+orient_slice = slice(None, 4)
+center_slice = slice(4, None)
 
 def norm2(x): return x.dot(x)
-
 
 class Rigid3(np.ndarray):
     '''SE(3) group'''
@@ -103,12 +101,12 @@ class Rigid3(np.ndarray):
     def __init__(self, value=None, **kwargs):
         '''construct a rigid transform from given value, identity if none'''
         if value is None:
-            self[-1] = 1
-            self[:6] = 0
+            self[:] = 0
+            self.orient.real = 1
         else:
             self[:] = value
 
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             setattr(self, k, v)
 
     def inv(self):
@@ -315,7 +313,7 @@ class Quaternion(np.ndarray):
         '''q = qz qy qx, xyz in radians'''
 
         if degrees:
-            xyz = np.array(xyz) * deg
+            xyz = np.array(xyz) / deg
 
         qs = [Quaternion.exp(xyz * ex),
               Quaternion.exp(xyz * ey),

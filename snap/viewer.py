@@ -62,7 +62,7 @@ class Camera(object):
         axis, angle = inv.orient.axis_angle()
         
         if axis is not None:
-            res.rotate(angle * deg, *axis)
+            res.rotate(angle / deg, *axis)
         return res
 
 
@@ -103,6 +103,11 @@ class Camera(object):
         
         Pinv, ok = self.projection.inverted()
         return self.unproject(Pinv, x, y, z)
+
+
+    @property
+    def pivot_distance(self):
+        return norm(self.frame.center - self.pivot)
     
     @coroutine
     def mouse_translate(self, start):
@@ -129,7 +134,7 @@ class Camera(object):
 
             d = e - s
 
-            scale = norm(self.frame.center - self.pivot)
+            scale = self.pivot_distance
 
             f = Rigid3()
             f.center = scale * 10 * self.translation_sensitivity * d 
@@ -297,7 +302,7 @@ class Camera(object):
             vel = factor * delta.log()
             if norm(vel) < self.stop_velocity: break
             
-            delta = Rigid3.exp( vel )
+            delta = Rigid3.Deriv.exp( vel )
             self.frame[:] = delta * self.frame
 
 
@@ -315,7 +320,7 @@ class Camera(object):
             vel = factor * delta.log()
             if norm(vel) < self.stop_velocity: break
             
-            delta = Rigid3.exp( vel )
+            delta = Rigid3.Deriv.exp( vel )
             self.frame[:] = self.frame * delta
 
 def draw_axis():
@@ -517,19 +522,22 @@ class Viewer(QtOpenGL.QGLWidget):
             self.update()
         
         self.on_keypress(e.text())
-                        
+
+    spin_threshold = 0.05
+    slide_threshold = 0.025
+        
     def mouseReleaseEvent(self, e):
         self.mouse_move_handler = None
 
         if e.button() == QtCore.Qt.LeftButton:
                         
-            if norm(self.camera.dframe.log()) > 0.1:
+            if norm(self.camera.dframe.log()) > self.spin_threshold:
                 self.draw_handler = self.camera.spin()
                 self.update()
                                 
         if e.button() == QtCore.Qt.RightButton:
                         
-            if norm(self.camera.dframe.log()) > 0.1:
+            if norm(self.camera.dframe.log()) / (1.0 + self.camera.pivot_distance) > self.slide_threshold:
                 self.draw_handler = self.camera.slide()
                 self.update()
 

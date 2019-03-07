@@ -6,21 +6,23 @@ from OpenGL.GLU import *
 from .math import *
 from contextlib import contextmanager
 
+
 def sphere(**kwargs):
-    
+
     radius = kwargs.get('radius', 0.5)
     slices = kwargs.get('slices', 16)
     stacks = kwargs.get('stacks', 8)
 
     gluSphere(sphere.quad, radius, slices, stacks)
 
+
 sphere.quad = gluNewQuadric()
 
 
 def circle(**kwargs):
-    
+
     radius = kwargs.get('radius', 0.5)
-    steps = kwargs.get('steps', 16)    
+    steps = kwargs.get('steps', 16)
 
     with begin(GL_LINE_LOOP):
         for i in range(steps):
@@ -28,12 +30,10 @@ def circle(**kwargs):
             glVertex(radius * math.cos(alpha), radius * math.sin(alpha))
 
 
-
 def cube(**kwargs):
-    
+
     mode = kwargs.get('mode', GL_QUADS)
     size = kwargs.get('size', 1)
-
 
     def side():
         # top
@@ -41,39 +41,43 @@ def cube(**kwargs):
         glVertex(1, 1, 1)
         glVertex(-1, 1, 1)
         glVertex(-1, -1, 1)
-        glVertex(1, -1, 1)        
-        
-    
+        glVertex(1, -1, 1)
+
     with push_matrix():
 
         # top
-        with begin(mode): side()
+        with begin(mode):
+            side()
 
         # back
         glRotate(90, 1, 0, 0)
-        with begin(mode): side()
+        with begin(mode):
+            side()
 
         # bottom
         glRotate(90, 1, 0, 0)
-        with begin(mode): side()
+        with begin(mode):
+            side()
 
         # front
         glRotate(90, 1, 0, 0)
-        with begin(mode): side()
+        with begin(mode):
+            side()
 
         # right
         glRotate(90, 0, 1, 0)
-        with begin(mode): side()
+        with begin(mode):
+            side()
 
         # left
         glRotate(180, 0, 1, 0)
-        with begin(mode): side()
+        with begin(mode):
+            side()
 
-        
-        
+
 def cylinder(**kwargs):
-    '''a z-aligned cone'''    
-    
+    '''a z-aligned cone'''
+
     radius = kwargs.get('radius', 0.5)
 
     height = kwargs.get('height', 1)
@@ -83,8 +87,8 @@ def cylinder(**kwargs):
 
     gluCylinder(cylinder.quad, radius, radius, height, slices, stacks)
 
-cylinder.quad = gluNewQuadric()
 
+cylinder.quad = gluNewQuadric()
 
 
 def cone(**kwargs):
@@ -98,8 +102,8 @@ def cone(**kwargs):
 
     gluCylinder(cone.quad, radius, 0, height, slices, stacks)
 
-cone.quad = gluNewQuadric()
 
+cone.quad = gluNewQuadric()
 
 
 def arrow(**kwargs):
@@ -111,20 +115,20 @@ def arrow(**kwargs):
     # slices = kwargs.get('slices', 16)
     # stacks = kwargs.get('stacks', 8)
 
-    cylinder(radius = radius, height = 0.8 * height)
+    cylinder(radius=radius, height=0.8 * height)
     with push_matrix():
         glTranslate(0, 0, 0.8 * height)
-        cone(radius = 2.0 * radius, height = 0.2 * height)
+        cone(radius=2.0 * radius, height=0.2 * height)
 
 
 def rotate(q):
     '''glRotate from a quaternion'''
-    
+
     axis, angle = q.axis_angle()
     if axis is not None:
-        glRotate(angle * deg, *axis)
+        glRotate(angle / deg, *axis)
 
-        
+
 @contextmanager
 def push_matrix():
     glPushMatrix()
@@ -132,7 +136,6 @@ def push_matrix():
         yield
     finally:
         glPopMatrix()
-
 
 
 @contextmanager
@@ -155,7 +158,7 @@ def disable(*args):
     finally:
         for a in args:
             glEnable(a)
-            
+
 
 @contextmanager
 def begin(what):
@@ -165,7 +168,8 @@ def begin(what):
         yield
     finally:
         glEnd()
-        
+
+
 @contextmanager
 def frame(g):
     '''rigid frame context'''
@@ -179,10 +183,7 @@ def frame(g):
 @contextmanager
 def lookat(target, **kwargs):
     view = kwargs.get('view', ez)
-    
+
     with push_matrix():
-        rotate( Quaternion.from_vectors(view, target) )
+        rotate(Quaternion.from_vectors(view, target))
         yield
-
-    
-
