@@ -1,4 +1,4 @@
-from PySide2 import QtCore, QtGui, QtOpenGL
+from PySide2 import QtCore, QtGui, QtOpenGL, QtWidgets
 from PySide2.QtWidgets import QApplication
 
 def connect(src, sig, dst):
