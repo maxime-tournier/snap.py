@@ -197,16 +197,27 @@ class Camera(object):
         
         self.frame.orient  = self.frame.orient * r
         
+
+    wheel_direction = 1.0
         
     @coroutine
-    def mouse_zoom(self):
+    def mouse_zoom(self, start=None):
         '''ajust zoom from mouse'''
-
+        if start is not None:
+            last = start.pos()
+            
         while True:
             ev = yield
-            
-            degrees = float( wheel_angle(ev)) / 256.0
 
+            if start is None:
+                degrees = self.wheel_direction * float(wheel_angle(ev)) / 256.0
+            else:
+                # dx = ev.pos().x() - start.x()
+                dy = ev.pos().y() - last.y()
+                last = ev.pos()
+                
+                degrees = - self.wheel_direction * (dy / 256.0)
+                
             u = self.frame.inv()(self.pivot)
             
             dist = norm(u)
@@ -227,15 +238,15 @@ class Camera(object):
     def mouse_rotate(self, start):
         '''rotate camera from mouse move events'''
 
-        start_pos = start.pos()
+        start = start.pos()
 
         start_frame = Rigid3()
         start_frame[:] = self.frame
 
         Pinv, ok = self.projection.inverted()
 
-        sx, sy = self.pixel_coords(start_pos.x(), start_pos.y())
-        s = start_frame( self.unproject(Pinv, sx, sy) )
+        sx, sy = self.pixel_coords(start.x(), start.y())
+        s = start_frame(self.unproject(Pinv, sx, sy) )
 
         
         while True:
@@ -465,7 +476,7 @@ class Viewer(QtOpenGL.QGLWidget):
                 p = self.camera.point_under_pixel(e.pos().x(), e.pos().y())
 
                 if p is not None:
-                    self.select( self.camera.frame(p))
+                    self.select(self.camera.frame(p))
                     self.mouse_move_handler = self.camera.mouse_drag(e)
                                         
             else:
@@ -482,6 +493,11 @@ class Viewer(QtOpenGL.QGLWidget):
             else:
                 self.mouse_move_handler = self.camera.mouse_translate(e)
                 self.update()
+
+        if e.button() == QtCore.Qt.MiddleButton:
+            self.mouse_move_handler = self.camera.mouse_zoom(e)
+            self.update()
+
 
 
     def mouseDoubleClickEvent(self, e):
