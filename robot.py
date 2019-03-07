@@ -1,6 +1,6 @@
 import snap
 
-from PySide import QtGui
+from PySide2 import QtWidgets
 
 import sys
 
@@ -13,6 +13,7 @@ from OpenGL.GLU import *
 
 from snap import gl
 from snap.math import *
+import snap.viewer
 
 import time
 
@@ -139,7 +140,7 @@ class Robot(object):
                     gl.cylinder()
                 
 
-class Viewer(snap.Viewer):
+class Viewer(snap.viewer.Viewer):
 
     def init(self):
         
@@ -162,7 +163,7 @@ class Viewer(snap.Viewer):
         
 if __name__ == '__main__':
     
-    app = QtGui.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
 
     w = Viewer()
     w.show()

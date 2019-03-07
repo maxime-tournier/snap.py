@@ -13,7 +13,7 @@ from numpy.linalg import norm
 # a few helpers
 
 
-def vec(*coords): return np.array(coords)
+def vec(*coords): return np.array(coords, dtype=float)
 
 
 deg = math.pi / 180.0
