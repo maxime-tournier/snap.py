@@ -724,7 +724,6 @@ def dragger(c):
     while True:
         pos = yield
         c.target[:] = pos
-        print('pos:', pos)
 
 def select(p, threshold=0.02):
     dist = [(norm(p - c.target), c) for c in constraints]
@@ -742,8 +741,6 @@ def drag(p):
     
     if on_drag:
         on_drag.send(p)
-    else:
-        print('nope')
 
 if __name__ == '__main__':
     on_drag = None
