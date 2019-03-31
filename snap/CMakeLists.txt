@@ -11,7 +11,6 @@ set(PYTHON_FILES
   )
 
 foreach(file ${PYTHON_FILES})
-  message(${file} ${CMAKE_CURRENT_BINARY_DIR}/${file})
   configure_file(${file} ${CMAKE_CURRENT_BINARY_DIR}/${file} COPYONLY)
 endforeach()
 
