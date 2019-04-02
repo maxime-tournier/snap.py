@@ -2,6 +2,7 @@
 # tournier.maxime@gmail.com
 '''rigid-body kinematics'''
 
+from __future__ import absolute_import
 
 import numpy as np
 import math
