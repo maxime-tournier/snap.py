@@ -586,8 +586,27 @@ class Viewer(QtWidgets.QOpenGLWidget):
 
 from contextlib import contextmanager
 
+def exit_on_sigint(app):
+    timeout = 100
 
-def run():
+    # install signal handler
+    def handler(sig, frame):
+        if sig == signal.SIGINT:
+            app.quit()
+
+    import signal
+    signal.signal(signal.SIGINT, handler)
+    
+    # note: we need to nudge python interpreter every so often so that our
+    # handler can run
+    timer = QtCore.QTimer(app)
+    timer.setInterval(timeout)
+    timer.timeout.connect(lambda: None)
+    timer.start()
+    
+
+
+def run(**kwargs):
 
     import sys
 
@@ -601,6 +620,8 @@ def run():
     select = main.get('select', None)
     drag = main.get('drag', None)
 
+    fullscreen = kwargs.get('fullscreen')
+    
     class SimpleViewer(Viewer):
 
         def init(self):
@@ -634,6 +655,12 @@ def run():
             else:
                 Viewer.keyPressEvent(self, e)
 
-    with app():
+    with app() as self:
+
         w = SimpleViewer()
         w.show()
+
+        if fullscreen:
+            w.showFullScreen()
+
+        exit_on_sigint(self)

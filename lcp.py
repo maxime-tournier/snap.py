@@ -166,5 +166,4 @@ if __name__ == '__main__':
             glVertex(0, 0, 0)
             glVertex(*q)
     
-    
-    viewer.run()
+    viewer.run(fullscreen=True)
