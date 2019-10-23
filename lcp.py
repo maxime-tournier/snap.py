@@ -58,7 +58,7 @@ def draw_ellipsoid(M, c, radius):
         gl.sphere(radius=radius, slices=128, stacks=64)
     
 
-def lcp(n):
+def random_lcp(n):
     m = 2 * n
     
     F = np.random.rand(m, n)
@@ -131,83 +131,101 @@ def curve():
             glLineWidth(4)
             with gl.begin(GL_LINE_STRIP):
                 yield
-                
 
-                
-def draw():
+def make_original():
+    n = 3
+    iterations = 20
+    
+    class LCP:
+        def __init__(self):
+            self.M, self.q = random_lcp(n)
 
-    glBlendFunc(gl.GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);    
-    with gl.enable(gl.GL_BLEND):
+            self.Minv = np.linalg.inv(self.M)
+            self.r = -self.Minv.dot(self.q)
+            self.s, self.v = np.linalg.eigh(self.M)
+
+            self.x = solve(self.M, self.q)
+
+            self.c = self.r / 2
+
+            _, self.quat = eigen_frame(self.M)
+            
+            self.restart()
+            
+            
+        def restart(self):
+            self.start = np.random.rand(3)
+            self.traj = [np.copy(y)
+                         for i, y in zip(range(iterations),
+                                         pgs_debug(np.copy(self.start),
+                                                   self.M, self.q)) ]
         
+        def draw(self):
+            # glClear(GL_DEPTH_BUFFER_BIT)
+            radius = math.sqrt(-self.q.dot(self.r) / 4)
 
-        draw_problem()
-        glClear(GL_DEPTH_BUFFER_BIT)        
-        draw_orthant()
-        
+            with points():
+                glColor(1, 1, 0)
+                glVertex(*self.c)
 
+            glColor(1, 1, 1, 0.5)
+            draw_ellipsoid(self.M, self.c, radius=radius)
+
+            glClear(GL_DEPTH_BUFFER_BIT)        
+            with push_matrix():
+                glTranslate(*self.r)
+                
+                gl.rotate(self.quat)
+                glScale(*(1.0 / self.s))
+                gl.rotate(self.quat.conj())
+                draw_orthant()
+
+            with points():
+                glColor(1, 0, 0)
+                glVertex(*self.x)
+
+            with lines():
+                glColor(1, 0, 1)
+                glVertex(0, 0, 0)
+                glVertex(*self.q)
+
+            with points():
+                glColor(0, 1, 0)
+                glVertex(*self.start)
+
+            with curve():
+                glColor(0, 1, 0)
+                for y in self.traj:
+                    glVertex(*y)
+
+            # 
+            glClear(GL_DEPTH_BUFFER_BIT)        
+            draw_orthant()
+            
+    return LCP()
 
 if __name__ == '__main__':
-    n = 3
-    M, q = lcp(n)
 
-    # M = np.identity(3)
-    # M = np.diag([3, 4, 5])
+    lcp = make_original()
 
-    # U = Quaternion.from_vectors(vec(1, 0, 0),
-    #                             vec(0, 1, 0)).matrix()
-    # M = U.dot(M).dot(U.T)
+    class Viewer(viewer.Viewer):
+        def draw(self):
+            glBlendFunc(gl.GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);    
+            with gl.enable(gl.GL_BLEND):
+                lcp.draw()
 
-    Minv = np.linalg.inv(M)
-    r = -Minv.dot(q)
-    s, v = np.linalg.eigh(M)
-    print(v, s)
-
-    x = solve(M, q)
-    print(x)
-
-    start = np.random.rand(3)
-    traj = [np.copy(y) for i, y in zip(range(20),
-                                       pgs_debug(np.copy(start), M, q)) ]
-    
-    
-    def draw_problem():
-        # glClear(GL_DEPTH_BUFFER_BIT)
-        radius = math.sqrt(-q.dot(r) / 4)
-
-        with points():
-            glColor(1, 1, 0)
-            glVertex(*(r/2))
-
-        glColor(1, 1, 1, 0.5)
-        draw_ellipsoid(M, r/2, radius=radius)
-
-        glClear(GL_DEPTH_BUFFER_BIT)        
-        with push_matrix():
-            glTranslate(*r)
-
-            s, u = eigen_frame(Minv)
+        def on_keypress(self, key):
+            global lcp
             
-            gl.rotate(u)
-            glScale(*s)
-            gl.rotate(u.conj())
-            draw_orthant()
-
-        with points():
-            glColor(1, 0, 0)
-            glVertex(*x)
+            if key == 'r':
+                lcp.restart()
+                self.update()
                 
-        with lines():
-            glColor(1, 0, 1)
-            glVertex(0, 0, 0)
-            glVertex(*q)
+            elif key == 'n':
+                lcp = make_original()
+                self.update()
 
-        with points():
-            glColor(0, 1, 0)
-            glVertex(*start)
-            
-        with curve():
-            glColor(0, 1, 0)
-            for y in traj:
-                glVertex(*y)
-    
-    viewer.run(fullscreen=True)
+    with viewer.app():
+        viewer = Viewer()
+        viewer.showFullScreen()
+        viewer.show()
