@@ -58,13 +58,13 @@ def draw_ellipsoid(M, c, radius):
         gl.sphere(radius=radius, slices=128, stacks=64)
     
 
-def random_lcp(n):
+def random_lcp(n, scale):
     m = 2 * n
     
     F = np.random.rand(m, n)
     M = F.T.dot(F)
 
-    q = 10 * (np.random.rand(n) - 0.5)
+    q = scale * (np.random.rand(n) - 0.5)
 
     return (M, q)
 
@@ -135,10 +135,11 @@ def curve():
 def make_original():
     n = 3
     iterations = 20
+    scale = 10
     
     class LCP:
         def __init__(self):
-            self.M, self.q = random_lcp(n)
+            self.M, self.q = random_lcp(n, scale)
 
             self.Minv = np.linalg.inv(self.M)
             self.r = -self.Minv.dot(self.q)
@@ -154,7 +155,7 @@ def make_original():
             
             
         def restart(self):
-            self.start = np.random.rand(3)
+            self.start = scale * (np.random.rand(3) - 0.5)
             self.traj = [np.copy(y)
                          for i, y in zip(range(iterations),
                                          pgs_debug(np.copy(self.start),
@@ -201,6 +202,34 @@ def make_original():
             # 
             glClear(GL_DEPTH_BUFFER_BIT)        
             draw_orthant()
+
+        def draw_normalized(self):
+            power = lambda x: self.v.dot(np.diag(self.s ** x)).dot(self.v.T)
+
+            r = -power(0.5).dot(self.q) / 2
+            
+            glColor(1, 1, 1, 0.5)
+            draw_ellipsoid(np.identity(3), np.zeros(3), radius=np.linalg.norm(r))
+            
+            glClear(GL_DEPTH_BUFFER_BIT)        
+            with push_matrix():
+                glTranslate(*(-r))
+                
+                gl.rotate(self.quat)
+                glScale(*(self.s ** 0.5))
+                gl.rotate(self.quat.conj())
+                draw_orthant()
+
+
+            glClear(GL_DEPTH_BUFFER_BIT)        
+            with push_matrix():
+                glTranslate(*r)
+                
+                gl.rotate(self.quat)
+                glScale(*(self.s ** -0.5))
+                gl.rotate(self.quat.conj())
+                draw_orthant()
+                
             
     return LCP()
 
@@ -212,7 +241,8 @@ if __name__ == '__main__':
         def draw(self):
             glBlendFunc(gl.GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);    
             with gl.enable(gl.GL_BLEND):
-                lcp.draw()
+                # lcp.draw()
+                lcp.draw_normalized()
 
         def on_keypress(self, key):
             global lcp
