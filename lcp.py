@@ -209,24 +209,30 @@ def make_original():
             r = -power(0.5).dot(self.q) / 2
             
             glColor(1, 1, 1, 0.5)
+            glPolygonMode(GL_FRONT_AND_BACK,GL_LINE)
             draw_ellipsoid(np.identity(3), np.zeros(3), radius=np.linalg.norm(r))
-            
-            glClear(GL_DEPTH_BUFFER_BIT)        
-            with push_matrix():
-                glTranslate(*(-r))
-                
-                gl.rotate(self.quat)
-                glScale(*(self.s ** 0.5))
-                gl.rotate(self.quat.conj())
-                draw_orthant()
+
+            glPolygonMode(GL_FRONT_AND_BACK,GL_FILL)
+            draw_ellipsoid(np.identity(3), np.zeros(3), radius=np.linalg.norm(r))
 
 
-            glClear(GL_DEPTH_BUFFER_BIT)        
+
+            # glClear(GL_DEPTH_BUFFER_BIT)        
             with push_matrix():
                 glTranslate(*r)
                 
                 gl.rotate(self.quat)
                 glScale(*(self.s ** -0.5))
+                gl.rotate(self.quat.conj())
+                draw_orthant()
+
+            
+            # glClear(GL_DEPTH_BUFFER_BIT)        
+            with push_matrix():
+                glTranslate(*(-r))
+                
+                gl.rotate(self.quat)
+                glScale(*(self.s ** 0.5))
                 gl.rotate(self.quat.conj())
                 draw_orthant()
                 
