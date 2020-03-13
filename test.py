@@ -7,6 +7,7 @@ from snap.tool import coroutine
 import numpy as np
 
 from contextlib import contextmanager
+from itertools import repeat
 
 default_size = (1024, 768)
 
@@ -55,39 +56,52 @@ class Camera:
     @property
     def ratio(self):
         return self.width / self.height
-        
+
+    @property
+    def view(self):
+        return self.frame.orient(-ez)
+    
     def projection(self):
         gluPerspective(self.fov, self.ratio, self.znear, self.zfar)
 
         
     def modelview(self):
         inv = self.frame.inv()
+
         glTranslate(*inv.center)
+
+        n, theta = inv.orient.axis_angle()
+        if n is not None:
+            glRotate(-theta / deg, *n)
 
         
     def resize(self, width, height):
         self.width = width
         self.height = height
         glViewport(0, 0, width, height)
-        self.ratio = width / float(height if height != 0.0 else 1.0)
+
+    def mouse_pos(self):
+        return pg.mouse.get_pos()
         
     @coroutine
     def mouse_move(self):
-        init = pg.mouse.get_pos()
+        init = self.mouse_pos()
 
         delta = None
         
         while True:
             current = yield delta
-            delta = np.array(current) - np.array(init)
-            # TODO normalize delta in camera coordinates
+            dx, dy = np.array(current) - np.array(init)
+            delta = dx / self.width, -dy / self.height
 
     @property
     def distance(self):
         return np.linalg.norm(self.target - self.frame.center)
             
-    translate_factor = 4.0
-            
+    translate_factor = 1.0
+    rotate_factor = 2.0
+    zoom_factor = 1.0
+    
     def mouse_translate(self):
         init = self.frame.copy()
         mouse_move = self.mouse_move()
@@ -97,26 +111,66 @@ class Camera:
         while True:
             info = yield None
             dx, dy = mouse_move.send(info)
-            self.frame.center = init.center - init.orient(vec(factor * dx / self.width,
-                                                              -factor * dy / self.height, 0))
+            self.frame.center = init.center - init.orient(vec(factor * dx, factor * dy, 0))
+
+            
+    def mouse_rotate(self):
+        init = self.frame.copy()
+        mouse_move = self.mouse_move()
+
+        factor = self.rotate_factor / (1.0 + self.distance)
+
+        while True:
+            info = yield None
+            dx, dy = mouse_move.send(info)
+            dv = vec(dx, dy, 0)
+
+            omega = np.cross(init.center - self.target, init.orient(dv))
+            quat = Quaternion.exp(omega * self.rotate_factor)
+
+            twist = Rigid3.translation(self.target) * Rigid3.rotation(quat) * Rigid3.translation(-self.target)
+            
+            self.frame = twist * init
+            # self.frame = Rigid3.rotation(Quaternion.exp(dx * ey)) * init
+            # print(self.frame.center, self.view)
+
+
+    def mouse_zoom(self):
+        init = self.frame.copy()
+        mouse_move = self.mouse_move()
+
+        factor = self.zoom_factor * self.distance
+        
+        while True:
+            info = yield None
+            dx, dy = mouse_move.send(info)
+
+            self.frame = init * Rigid3.translation(-factor * dy * ez)
 
             
     def mouse_left(self):
+        yield from self.mouse_rotate()
+
+    def mouse_right(self):
         yield from self.mouse_translate()
+
+    def mouse_middle(self):
+        yield from self.mouse_zoom()
 
         
-    def mouse_left(self):
-        yield from self.mouse_translate()
-
     @coroutine
     def mouse(self, button):
+        print('button:', button)
         if button == 1:
             yield from self.mouse_left()
-        elif button == 2:
+        if button == 2:
+            yield from self.mouse_middle()
+        elif button == 3:
             yield from self.mouse_right()
-        else: return None
+        else:
+            yield from repeat(None)
 
-    
+            
 def camera_loop():
     camera = Camera()
 
@@ -154,6 +208,7 @@ glEnable(GL_LIGHTING)
 glEnable(GL_DEPTH_TEST)
 glEnable(GL_LIGHTING)
 glEnable(GL_LIGHT0)
+glEnable(GL_NORMALIZE)
         
 for events in camera_loop():
     for ev in events:
@@ -162,5 +217,7 @@ for events in camera_loop():
                 pg.quit()
                 quit()
             
-    glTranslate(0, 0, -5)
+    glTranslate(0, 0, 0)
+    s = 0.1
+    glScale(s, s, s)
     cube()
