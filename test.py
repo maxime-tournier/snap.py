@@ -27,12 +27,12 @@ def init():
 
     log.info('initialized')
 
+class Quit(Exception): pass
     
 def event_loop():
     def handle(ev):
         if ev.type == pg.QUIT:
-            pg.quit()
-            quit()
+            raise Quit()
         return ev
             
     while True:
@@ -123,24 +123,34 @@ def reload():
     os.execl(sys.executable, __file__, *sys.argv)
 
 
-if __name__ == '__main__':    
+def loop():
     init()
+
+    def handle(event):
+        if event.type == pg.KEYDOWN:
+            log.debug('key down:', event.key)
+            if event.key == ord('r'):
+                reload()
+            if event.key == pg.K_ESCAPE:
+                raise Quit()
+        return event
+            
 
     for events in tool.compose(event_loop(), viewer_loop()):
         try:
-            for ev in events:
-                if ev.type == pg.KEYDOWN:
-                    print('key down:', ev.key)
-                    if ev.key == ord('r'):
-                        reload()
-                    if ev.key == pg.K_ESCAPE:
-                        pg.quit()
-                        quit()
-
-            gl.glTranslate(0, 0, 0)
-            s = 0.1
-            gl.glScale(s, s, s)
-            gl.glColor(1, 1, 1)
-            gl.cube()
+            yield list(filter(handle, events))
+        except Quit:
+            pg.quit()
+            quit()
         except:
             log.error(traceback.format_exc())
+    
+            
+if __name__ == '__main__':    
+    for events in loop():
+
+        gl.glTranslate(0, 0, 0)
+        s = 0.1
+        gl.glScale(s, s, s)
+        gl.glColor(1, 1, 1)
+        gl.cube()
