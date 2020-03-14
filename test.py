@@ -1,10 +1,7 @@
 import pygame as pg
 
-from snap.gl import *
+from snap import gl, tool
 from snap.math import *
-from snap.tool import coroutine
-
-from OpenGL.GLU import projection
 
 import numpy as np
 
@@ -15,15 +12,23 @@ import logging
 log = logging.getLogger()
 import traceback
 
-
 default_size = (1024, 768)
 
 def init():
     pg.display.init()
     pg.display.set_mode(default_size, pg.DOUBLEBUF | pg.OPENGL | pg.RESIZABLE)
+
+    bg = 0.2
+    
+    gl.glClearColor(bg, bg, bg, 1)
+    gl.glEnable(gl.GL_LIGHTING)
+    gl.glEnable(gl.GL_DEPTH_TEST)
+    gl.glEnable(gl.GL_LIGHTING)
+    gl.glEnable(gl.GL_LIGHT0)
+    gl.glEnable(gl.GL_NORMALIZE)
+    gl.glEnable(gl.GL_COLOR_MATERIAL)
     
     print('init')
-
 
     
 def loop():
@@ -34,162 +39,24 @@ def loop():
         return ev
             
     while True:
-       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+       gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
        
        yield filter(handle, pg.event.get())
        
        pg.display.flip()
        pg.time.wait(10)
 
-
-def draw_axis():
-
-    glColor(1, 1, 1)
-    sphere(radius=0.025)
-
-    glColor(1, 0.2, 0.2)
-    with lookat(ex):
-        arrow()
-
-    glColor(0.2, 1, 0.2)
-    with lookat(ey):
-        arrow()
-
-    glColor(0.2, 0.2, 1)
-    with lookat(ez):
-        arrow()
        
 
-class Camera:
-    __slots__ = ('fov', 'znear', 'zfar', 'target', 'frame', 'width', 'height')
+class Camera(gl.Camera):
 
     def __init__(self):
-        self.znear = 0.1
-        self.zfar = 100.0
-
-        self.fov = 60
-
-        self.target = np.zeros(3)
-        self.frame = Rigid3()
-
-        self.width, self.height = default_size
-
-        self.frame.center[2] = 1
-        
-    @property
-    def ratio(self):
-        return self.width / self.height
-
-    @property
-    def view(self):
-        return self.frame.orient(-ez)
+        gl.Camera.__init__(self)
+        self.resize(*default_size)
     
-    def projection(self):
-        gluPerspective(self.fov, self.ratio, self.znear, self.zfar)
-
-        
-    def modelview(self):
-        inv = self.frame.inv()
-
-        glTranslate(*inv.center)
-
-        n, theta = inv.orient.axis_angle()
-        if n is not None:
-            glRotate(theta / deg, *n)
-
-        
-    def resize(self, width, height):
-        self.width = width
-        self.height = height
-        glViewport(0, 0, width, height)
-
     def mouse_win(self):
         return pg.mouse.get_pos()
-        
-    def mouse_cam(self, z=0):
-        x, y = self.mouse_win()
-        return np.array([2 * (x / self.width - 0.5), 2 * (-y / self.height - 0.5), z])
-    
-    @coroutine
-    def mouse_move(self):
-        init = self.mouse_cam()
-        delta = None
-        
-        while True:
-            yield delta
-            current = self.mouse_cam()
-            delta = np.array(current) - np.array(init)
 
-    @property
-    def distance(self):
-        return np.linalg.norm(self.target - self.frame.center)
-            
-    translate_factor = 1.0
-    rotate_factor = 2.0
-    zoom_factor = 1.0
-
-    def unproject(self, x, y, z=0):
-        return np.array(projection.gluUnProject(x, y, z))
-    
-    def mouse_translate(self):
-        init = self.frame.copy()
-        factor = self.translate_factor * self.distance
-
-        for dx in self.mouse_move():
-            self.frame.center = init.center - init.orient(factor * dx)
-            yield
-            
-            
-    def mouse_trackball(self):
-        init = self.frame.copy()
-
-        winx, winy = self.mouse_win()
-        p = self.unproject(winx, winy, 0)
-        x = self.mouse_cam()
-        
-        factor = self.rotate_factor / (self.znear + self.distance)
-        
-        for dx in self.mouse_move():
-            omega = np.cross(p - self.target, init.orient(dx))
-            quat = Quaternion.exp(-omega * factor)
-
-            twist = Rigid3.translation(self.target) * Rigid3.rotation(quat) * Rigid3.translation(-self.target)
-            self.frame = twist * init
-            
-            yield
-
-    def mouse_rotate(self):
-        init = self.frame.copy()
-
-        for dx in self.mouse_move():
-            omega = np.cross(init.center - self.target, init.orient(dx))
-            quat = Quaternion.exp(-omega * self.rotate_factor)
-
-            self.frame = init * Rigid3.rotation(quat)
-            
-            yield
-        
-
-    def mouse_zoom(self):
-        init = self.frame.copy()
-        local_view = init.orient.inv()(self.view)
-        
-        factor = self.zoom_factor * self.distance
-        
-        for dx, dy in self.mouse_move():
-            self.frame = init * Rigid3.translation(-factor * dy * local_view)
-            yield
-
-            
-    def mouse_zoom_wheel(self, amount):
-        init = self.frame.copy()
-        local_view = init.orient.inv()(self.target - init.center)
-
-        factor = amount
-        
-        self.frame = init * Rigid3.translation(-factor * local_view)
-        yield
-            
     def mouse_left(self):
         yield from self.mouse_trackball()
 
@@ -199,14 +66,11 @@ class Camera:
     def mouse_middle(self):
         yield from self.mouse_zoom()
 
-    wheel_factor = 0.1
-    
     def mouse_wheel(self, up):
-        amount = self.wheel_factor if up else -self.wheel_factor
+        amount = 1.0 if up else -1.0
         yield from self.mouse_zoom_wheel(amount)
         
-        
-    @coroutine
+    @tool.coroutine
     def mouse(self, button):
 
         if button == 1:
@@ -222,8 +86,8 @@ class Camera:
         else:
             yield from repeat(None)
 
-            
-            
+        
+    
 def camera_loop():
     camera = Camera()
 
@@ -245,34 +109,13 @@ def camera_loop():
 
     for events in loop():
         events = filter(handle, events)
-        try:
-            glMatrixMode(GL_PROJECTION)
-            glLoadIdentity()
-            camera.projection()
-
-            glMatrixMode(GL_MODELVIEW)
-            glLoadIdentity()            
-            camera.modelview()
-
+        with camera.draw():
             if state.mouse:
-                glPushMatrix()
-                glTranslate(*camera.target)
-                draw_axis()
-                glPopMatrix()
-            
-            glPushMatrix()
+                camera.draw_axis()
+                
             yield events
-        finally:
-            glPopMatrix()
        
 init()
-glClearColor(1, 0, 0, 1)
-glEnable(GL_LIGHTING)
-glEnable(GL_DEPTH_TEST)
-glEnable(GL_LIGHTING)
-glEnable(GL_LIGHT0)
-glEnable(GL_NORMALIZE)
-glEnable(GL_COLOR_MATERIAL)
 
 def reload():
     import sys
@@ -290,10 +133,10 @@ for events in camera_loop():
                     pg.quit()
                     quit()
 
-        glTranslate(0, 0, 0)
+        gl.glTranslate(0, 0, 0)
         s = 0.1
-        glScale(s, s, s)
-        glColor(1, 1, 1)
-        cube()
+        gl.glScale(s, s, s)
+        gl.glColor(1, 1, 1)
+        gl.cube()
     except:
         log.error(traceback.format_exc())
