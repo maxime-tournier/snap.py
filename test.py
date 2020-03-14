@@ -95,7 +95,7 @@ class Camera:
 
         n, theta = inv.orient.axis_angle()
         if n is not None:
-            glRotate(-theta / deg, *n)
+            glRotate(theta / deg, *n)
 
         
     def resize(self, width, height):
@@ -136,48 +136,62 @@ class Camera:
         factor = self.translate_factor * self.distance
 
         for dx in self.mouse_move():
-            self.frame.center = init.center - init.orient(dx)
+            self.frame.center = init.center - init.orient(factor * dx)
             yield
             
             
+    def mouse_trackball(self):
+        init = self.frame.copy()
+
+        winx, winy = self.mouse_win()
+        p = self.unproject(winx, winy, 0)
+        x = self.mouse_cam()
+        
+        factor = self.rotate_factor / (self.znear + self.distance)
+        
+        for dx in self.mouse_move():
+            omega = np.cross(p - self.target, init.orient(dx))
+            quat = Quaternion.exp(-omega * factor)
+
+            twist = Rigid3.translation(self.target) * Rigid3.rotation(quat) * Rigid3.translation(-self.target)
+            self.frame = twist * init
+            
+            yield
+
     def mouse_rotate(self):
         init = self.frame.copy()
 
-        win = self.mouse_win()
-        p = self.unproject(*win)
-        
-        x = self.mouse_cam()
-        factor = self.rotate_factor / (1.0 + self.distance)
-
         for dx in self.mouse_move():
-            omega = np.cross(p - self.target, init.orient(dx))
-            quat = Quaternion.exp(omega * self.rotate_factor)
+            omega = np.cross(init.center - self.target, init.orient(dx))
+            quat = Quaternion.exp(-omega * self.rotate_factor)
 
-            twist = Rigid3.translation(self.target) * Rigid3.rotation(quat) * Rigid3.translation(-self.target)
+            self.frame = init * Rigid3.rotation(quat)
             
-            self.frame = twist * init
             yield
-            # self.frame = Rigid3.rotation(Quaternion.exp(dx * ey)) * init
-            # print(self.frame.center, self.view)
-
+        
 
     def mouse_zoom(self):
         init = self.frame.copy()
+        local_view = init.orient.inv()(self.view)
+        
         factor = self.zoom_factor * self.distance
         
         for dx, dy in self.mouse_move():
-            self.frame = init * Rigid3.translation(-factor * dy * ez)
+            self.frame = init * Rigid3.translation(-factor * dy * local_view)
             yield
 
+            
     def mouse_zoom_wheel(self, amount):
         init = self.frame.copy()
-        factor = self.zoom_factor * self.distance
+        local_view = init.orient.inv()(self.target - init.center)
 
-        self.frame = init * Rigid3.translation(-factor * amount * ez)
+        factor = amount
+        
+        self.frame = init * Rigid3.translation(-factor * local_view)
         yield
             
     def mouse_left(self):
-        yield from self.mouse_rotate()
+        yield from self.mouse_trackball()
 
     def mouse_right(self):
         yield from self.mouse_translate()
@@ -194,7 +208,7 @@ class Camera:
         
     @coroutine
     def mouse(self, button):
-        print('button:', button)
+
         if button == 1:
             yield from self.mouse_left()
         if button == 2:
@@ -241,7 +255,10 @@ def camera_loop():
             camera.modelview()
 
             if state.mouse:
+                glPushMatrix()
+                glTranslate(*camera.target)
                 draw_axis()
+                glPopMatrix()
             
             glPushMatrix()
             yield events
