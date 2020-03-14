@@ -2,6 +2,7 @@ import pygame as pg
 
 from snap import gl, tool
 from itertools import repeat
+from contextlib import contextmanager
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -11,6 +12,9 @@ import traceback
 
 default_size = (1024, 768)
 
+class Quit(Exception): pass
+
+@contextmanager
 def init():
     pg.display.init()
     pg.display.set_mode(default_size, pg.DOUBLEBUF | pg.OPENGL | pg.RESIZABLE)
@@ -27,7 +31,11 @@ def init():
 
     log.info('initialized')
 
-class Quit(Exception): pass
+    try:
+        yield
+    except Quit:
+        pg.quit()
+        quit()
     
 def event_loop():
     def handle(ev):
@@ -124,8 +132,6 @@ def reload():
 
 
 def loop():
-    init()
-
     def handle(event):
         if event.type == pg.KEYDOWN:
             log.debug('key down:', event.key)
@@ -134,21 +140,50 @@ def loop():
             if event.key == pg.K_ESCAPE:
                 raise Quit()
         return event
-            
 
     for events in tool.compose(event_loop(), viewer_loop()):
         try:
             yield list(filter(handle, events))
         except Quit:
-            pg.quit()
-            quit()
+            raise
+        except GeneratorExit:
+            return
         except:
             log.error(traceback.format_exc())
-    
-            
+
+
+@contextmanager
+def safe_terminal():
+    import subprocess as sp
+
+    state = sp.run(['stty', '-g'], check=True, stdout=sp.PIPE).stdout.decode().strip()
+    print(state)
+    try:
+        yield
+    finally:
+        log.debug('restoring terminal state')
+        sp.run(['stty', state], check=True)
+
+@contextmanager
+def console(local=None):
+    def target(local):
+        import code
+        try:
+            code.interact(local=local)
+        finally:
+            pg.event.post(pg.event.Event(pg.QUIT))
+
+    from threading import Thread            
+    thread = Thread(target=target, args=(locals(),))
+    thread.daemon = True
+        
+    with safe_terminal():
+        thread.start()
+        yield
+        
+        
 if __name__ == '__main__':    
     for events in loop():
-
         gl.glTranslate(0, 0, 0)
         s = 0.1
         gl.glScale(s, s, s)
