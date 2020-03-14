@@ -13,3 +13,12 @@ def coroutine(f):
         return res
 
     return start
+
+
+@coroutine                
+def compose(*coroutines):
+    result = None
+    while True:
+        result = yield result
+        for co in coroutines:
+            result = co.send(result)

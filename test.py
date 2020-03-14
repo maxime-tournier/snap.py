@@ -1,15 +1,12 @@
 import pygame as pg
 
 from snap import gl, tool
-from snap.math import *
-
-import numpy as np
-
-from contextlib import contextmanager
 from itertools import repeat
 
 import logging
-log = logging.getLogger()
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger('main')
+
 import traceback
 
 default_size = (1024, 768)
@@ -27,11 +24,11 @@ def init():
     gl.glEnable(gl.GL_LIGHT0)
     gl.glEnable(gl.GL_NORMALIZE)
     gl.glEnable(gl.GL_COLOR_MATERIAL)
-    
-    print('init')
+
+    log.info('initialized')
 
     
-def loop():
+def event_loop():
     def handle(ev):
         if ev.type == pg.QUIT:
             pg.quit()
@@ -87,56 +84,63 @@ class Camera(gl.Camera):
             yield from repeat(None)
 
         
-    
-def camera_loop():
+@tool.coroutine    
+def viewer_loop():
     camera = Camera()
 
     class State: pass
+    
     state = State()
     state.mouse = None
 
     def handle(event):
         if event.type == pg.VIDEORESIZE:
             camera.resize(event.w, event.h)
+            
         elif event.type == pg.MOUSEBUTTONDOWN:
             state.mouse = camera.mouse(event.button)
+            
         elif event.type == pg.MOUSEBUTTONUP:
             state.mouse = None
+            
         elif event.type == pg.MOUSEMOTION:                
             if state.mouse: next(state.mouse)
+            
         else:
             return event
 
-    for events in loop():
+    events = None
+    while True:
+        events = yield events
         events = filter(handle, events)
         with camera.draw():
             if state.mouse:
                 camera.draw_axis()
-                
-            yield events
-       
-init()
 
 def reload():
     import sys
     import os
     os.execl(sys.executable, __file__, *sys.argv)
 
-for events in camera_loop():
-    try:
-        for ev in events:
-            if ev.type == pg.KEYDOWN:
-                print('key down:', ev.key)
-                if ev.key == ord('r'):
-                    reload()
-                if ev.key == pg.K_ESCAPE:
-                    pg.quit()
-                    quit()
 
-        gl.glTranslate(0, 0, 0)
-        s = 0.1
-        gl.glScale(s, s, s)
-        gl.glColor(1, 1, 1)
-        gl.cube()
-    except:
-        log.error(traceback.format_exc())
+if __name__ == '__main__':    
+    init()
+
+    for events in tool.compose(event_loop(), viewer_loop()):
+        try:
+            for ev in events:
+                if ev.type == pg.KEYDOWN:
+                    print('key down:', ev.key)
+                    if ev.key == ord('r'):
+                        reload()
+                    if ev.key == pg.K_ESCAPE:
+                        pg.quit()
+                        quit()
+
+            gl.glTranslate(0, 0, 0)
+            s = 0.1
+            gl.glScale(s, s, s)
+            gl.glColor(1, 1, 1)
+            gl.cube()
+        except:
+            log.error(traceback.format_exc())
