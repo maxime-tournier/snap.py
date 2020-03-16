@@ -338,11 +338,11 @@ class Camera:
 
     def mouse_zoom(self):
         init = self.frame.copy()
-        local_view = init.orient.inv()(self.view)
+        local_view = init.orient.inv()(self.target - init.center)
         
         factor = self.zoom_factor * self.distance
         
-        for dx, dy in self.mouse_move():
+        for dx, dy, dz in self.mouse_move():
             self.frame = init * Rigid3.translation(-factor * dy * local_view)
             yield
 
