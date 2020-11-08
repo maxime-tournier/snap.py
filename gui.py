@@ -156,14 +156,16 @@ def loop():
 def safe_terminal():
     import subprocess as sp
 
-    state = sp.run(['stty', '-g'], check=True, stdout=sp.PIPE).stdout.decode().strip()
-    print(state)
+    state = sp.run(['stty', '-g'], check=True,
+                   stdout=sp.PIPE).stdout.decode().strip()
+    # print(state)
     try:
         yield
     finally:
         log.debug('restoring terminal state')
         sp.run(['stty', state], check=True)
 
+        
 @contextmanager
 def console(local=None):
     def target(local):
@@ -174,7 +176,7 @@ def console(local=None):
             pg.event.post(pg.event.Event(pg.QUIT))
 
     from threading import Thread            
-    thread = Thread(target=target, args=(locals(),))
+    thread = Thread(target=target, args=(local,))
     thread.daemon = True
         
     with safe_terminal():
